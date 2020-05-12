@@ -1,18 +1,24 @@
 package io.envoyproxy.controlplane.v3.server;
 
+import static com.google.common.base.Strings.isNullOrEmpty;
+
 import com.google.common.base.Preconditions;
 import io.envoyproxy.controlplane.v3.cache.ConfigWatcher;
 import io.envoyproxy.controlplane.v3.cache.Resources;
 import io.envoyproxy.controlplane.v3.server.serializer.DefaultProtoResourcesSerializer;
 import io.envoyproxy.controlplane.v3.server.serializer.ProtoResourcesSerializer;
+import io.envoyproxy.envoy.config.core.v3.Node;
 import io.envoyproxy.envoy.service.cluster.v3.ClusterDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.service.discovery.v3.AggregatedDiscoveryServiceGrpc;
+import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryRequest;
+import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryResponse;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryRequest;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryResponse;
 import io.envoyproxy.envoy.service.endpoint.v3.EndpointDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.service.listener.v3.ListenerDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.service.route.v3.RouteDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.service.secret.v3.SecretDiscoveryServiceGrpc;
+import io.grpc.Status;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import java.util.Collections;
@@ -96,6 +102,12 @@ public class DiscoveryServer {
           StreamObserver<DiscoveryResponse> responseObserver) {
 
         return createRequestHandler(responseObserver, false, Resources.CLUSTER_TYPE_URL);
+      }
+
+      @Override
+      public StreamObserver<DeltaDiscoveryRequest> deltaClusters(
+          StreamObserver<DeltaDiscoveryResponse> responseObserver) {
+        return super.deltaClusters(responseObserver);
       }
     };
   }
@@ -190,5 +202,83 @@ public class DiscoveryServer {
     }
 
     return requestStreamObserver;
+  }
+
+  private StreamObserver<DeltaDiscoveryRequest> createDeltaRequestHandler(
+      StreamObserver<DeltaDiscoveryResponse> responseObserver,
+      boolean ads,
+      String defaultTypeUrl) {
+
+    long streamId = streamCount.getAndIncrement();
+    Executor executor = executorGroup.next();
+
+    LOGGER.debug("[{}] open stream from {}", streamId, defaultTypeUrl);
+
+    callbacks.forEach(cb -> cb.onStreamOpen(streamId, defaultTypeUrl));
+
+    return new StreamObserver<DeltaDiscoveryRequest>() {
+      Node node;
+
+      @Override
+      public void onNext(DeltaDiscoveryRequest request) {
+        if (ads && request.getTypeUrl().isEmpty()) {
+          responseObserver.onError(
+              Status.UNKNOWN
+                  .withDescription(String.format("[%d] type URL is required for ADS", streamId))
+                  .asRuntimeException());
+
+          return;
+        }
+
+        if (request.hasNode()) {
+          node = request.getNode();
+        }
+
+        String requestTypeUrl = request.getTypeUrl().isEmpty() ? defaultTypeUrl : request.getTypeUrl();
+        String nonce = request.getResponseNonce();
+
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.info("[{}] request {}[{}] with nonce {}",
+              streamId,
+              requestTypeUrl,
+              String.join(", ", request.getResourceNamesSubscribeList()),
+              nonce);
+        }
+
+        // try {
+        //   // discoverySever.callbacks.forEach(cb -> cb.onStreamRequest(streamId, request));
+        // } catch (RequestException e) {
+        //   closeWithError(e);
+        //   return;
+        // }
+
+        LatestDiscoveryResponse latestDiscoveryResponse = latestResponse(requestTypeUrl);
+        String resourceNonce = latestDiscoveryResponse == null ? null : latestDiscoveryResponse.nonce();
+
+        if (isNullOrEmpty(resourceNonce) || resourceNonce.equals(nonce)) {
+          if (!request.hasErrorDetail() && latestDiscoveryResponse != null) {
+            setAckedResources(requestTypeUrl, latestDiscoveryResponse.resourceNames());
+          }
+
+          computeWatch(requestTypeUrl, () -> discoverySever.configWatcher.createWatch(
+              ads(),
+              request,
+              ackedResources(requestTypeUrl),
+              r -> executor.execute(() -> send(r, requestTypeUrl)),
+              hasClusterChanged
+          ));
+        }
+      }
+
+      @Override
+      public void onError(Throwable t) {
+
+      }
+
+      @Override
+      public void onCompleted() {
+
+      }
+    };
   }
 }

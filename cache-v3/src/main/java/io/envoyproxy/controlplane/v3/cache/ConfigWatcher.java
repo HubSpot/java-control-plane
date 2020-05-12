@@ -1,6 +1,8 @@
 package io.envoyproxy.controlplane.v3.cache;
 
+import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryRequest;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryRequest;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.ThreadSafe;
@@ -29,4 +31,17 @@ public interface ConfigWatcher {
       Set<String> knownResourceNames,
       Consumer<Response> responseConsumer,
       boolean hasClusterChanged);
+
+  /**
+   * Returns a new configuration resource {@link Watch} for the given discovery request.
+   *
+   * @param request          the discovery request (node, names, etc.) to use to generate the watch
+   * @param trackedResources resources that are already known to the caller
+   * @param responseConsumer the response handler, used to process outgoing response messages
+   *                         Supported in ADS mode.
+   */
+  DeltaWatch createDeltaWatch(
+      DeltaDiscoveryRequest request,
+      Map<String, String> trackedResources,
+      Consumer<DeltaResponse> responseConsumer);
 }

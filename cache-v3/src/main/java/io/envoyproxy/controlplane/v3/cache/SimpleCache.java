@@ -4,6 +4,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.protobuf.Message;
+import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryRequest;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryRequest;
 import java.util.Collection;
 import java.util.HashMap;
@@ -185,6 +186,71 @@ public class SimpleCache<T> implements SnapshotCache<T> {
     }
   }
 
+  @Override
+  public DeltaWatch createDeltaWatch(DeltaDiscoveryRequest request,
+                                     Map<String, String> trackedResources,
+                                     Consumer<DeltaResponse> responseConsumer) {
+    T group = groups.hash(request.getNode());
+    // even though we're modifying, we take a readLock to allow multiple watches to be created in parallel since it
+    // doesn't conflict
+    readLock.lock();
+    try {
+      CacheStatusInfo<T> status = statuses.computeIfAbsent(group, g -> new ConcurrentHashMap<>())
+          .computeIfAbsent(request.getTypeUrl(), s -> new CacheStatusInfo<>(group));
+      status.setLastWatchRequestTime(System.currentTimeMillis());
+
+      Snapshot snapshot = snapshots.get(group);
+      DeltaWatch watch = new DeltaWatch(request, responseConsumer);
+
+      if (snapshot == null) {
+        long watchId = watchCount.incrementAndGet();
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("open delta watch {} for {}[{}] from node {}, nonce {}",
+              watchId,
+              request.getTypeUrl(),
+              String.join(", ", request.getResourceNamesSubscribeList()),
+              group,
+              request.getResponseNonce());
+        }
+
+        status.setDeltaWatch(watchId, watch);
+
+        watch.setStop(() -> status.removeWatch(watchId));
+        return watch;
+      }
+
+      if (request.getResourceNamesSubscribeCount() != 0) {
+        // response must include requested resources
+      }
+
+      Set<String> requestedResources = ImmutableSet.copyOf(request.getResourceNamesList());
+
+      // Otherwise, the watch may be responded immediately
+      boolean responded = respondDelta(watch, snapshot, group);
+
+      if (!responded) {
+        long watchId = watchCount.incrementAndGet();
+
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("did not respond immediately, leaving open watch {} for {}[{}] from node {} for version {}",
+              watchId,
+              request.getTypeUrl(),
+              String.join(", ", request.getResourceNamesList()),
+              group,
+              request.getVersionInfo());
+        }
+
+        status.setWatch(watchId, watch);
+
+        watch.setStop(() -> status.removeWatch(watchId));
+      }
+
+      return watch;
+    } finally {
+      readLock.unlock();
+    }
+  }
+
   /**
    * {@inheritDoc}
    */
@@ -286,19 +352,38 @@ public class SimpleCache<T> implements SnapshotCache<T> {
     }
   }
 
-  private Response createResponse(DiscoveryRequest request, Map<String, ? extends Message> resources, String version) {
+  private Response createResponse(DiscoveryRequest request, Map<String, SnapshotResource<?>> resources, String version) {
     Collection<? extends Message> filtered = request.getResourceNamesList().isEmpty()
         ? resources.values()
+        .stream()
+        .map(SnapshotResource::resource)
+        .collect(Collectors.toList())
         : request.getResourceNamesList().stream()
         .map(resources::get)
         .filter(Objects::nonNull)
+        .map(SnapshotResource::resource)
+        .collect(Collectors.toList());
+
+    return Response.create(request, filtered, version);
+  }
+
+  private DeltaResponse createDeltaResponse(DeltaDiscoveryRequest request, Map<String, SnapshotResource<?>> resources, String version) {
+    Collection<? extends Message> filtered = request.getResourceNamesList().isEmpty()
+        ? resources.values()
+        .stream()
+        .map(SnapshotResource::resource)
+        .collect(Collectors.toList())
+        : request.getResourceNamesList().stream()
+        .map(resources::get)
+        .filter(Objects::nonNull)
+        .map(SnapshotResource::resource)
         .collect(Collectors.toList());
 
     return Response.create(request, filtered, version);
   }
 
   private boolean respond(Watch watch, Snapshot snapshot, T group) {
-    Map<String, ? extends Message> snapshotResources = snapshot.resources(watch.request().getTypeUrl());
+    Map<String, SnapshotResource<?>> snapshotResources = snapshot.resources(watch.request().getTypeUrl());
 
     if (!watch.request().getResourceNamesList().isEmpty() && watch.ads()) {
       Collection<String> missingNames = watch.request().getResourceNamesList().stream()
@@ -310,7 +395,7 @@ public class SimpleCache<T> implements SnapshotCache<T> {
             "not responding in ADS mode for {} from node {} at version {} for request [{}] since [{}] not in snapshot",
             watch.request().getTypeUrl(),
             group,
-            snapshot.version(watch.request().getTypeUrl(), watch.request().getResourceNamesList()),
+            snapshot.version(watch.request().getTypeUrl()),
             String.join(", ", watch.request().getResourceNamesList()),
             String.join(", ", missingNames));
 
@@ -318,7 +403,7 @@ public class SimpleCache<T> implements SnapshotCache<T> {
       }
     }
 
-    String version = snapshot.version(watch.request().getTypeUrl(), watch.request().getResourceNamesList());
+    String version = snapshot.version(watch.request().getTypeUrl());
 
     LOGGER.debug("responding for {} from node {} at version {} with version {}",
         watch.request().getTypeUrl(),
@@ -340,6 +425,36 @@ public class SimpleCache<T> implements SnapshotCache<T> {
           watch.request().getTypeUrl(),
           group,
           watch.request().getVersionInfo(),
+          version);
+    }
+
+    return false;
+  }
+
+  private boolean respondDelta(DeltaWatch watch, Snapshot snapshot, T group) {
+    Map<String, SnapshotResource<?>> snapshotResources = snapshot.resources(watch.request().getTypeUrl());
+
+    boolean isWildcaard = watch.request().
+    String version = snapshot.version(watch.request().getTypeUrl());
+
+    LOGGER.debug("responding for {} from node {} with version {}",
+        watch.request().getTypeUrl(),
+        group,
+        version);
+
+    DeltaResponse response = createDeltaResponse(
+        watch.request(),
+        snapshotResources,
+        version);
+
+    try {
+      watch.respond(response);
+      return true;
+    } catch (WatchCancelledException e) {
+      LOGGER.error(
+          "failed to respond for {} from node {} with version {} because watch was already cancelled",
+          watch.request().getTypeUrl(),
+          group,
           version);
     }
 

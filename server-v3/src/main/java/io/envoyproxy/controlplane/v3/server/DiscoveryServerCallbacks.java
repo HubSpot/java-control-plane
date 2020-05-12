@@ -1,6 +1,9 @@
 package io.envoyproxy.controlplane.v3.server;
 
 import io.envoyproxy.controlplane.v3.server.exception.RequestException;
+import io.envoyproxy.envoy.config.core.v3.Node;
+import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryRequest;
+import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryResponse;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryRequest;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryResponse;
 
@@ -58,6 +61,20 @@ public interface DiscoveryServerCallbacks {
   }
 
   /**
+   * {@code onStreamDeltaRequest} is called for each {@link DeltaDiscoveryRequest} that is received on the stream.
+   *
+   * @param streamId an ID for this stream that is only unique to this discovery server instance
+   * @param node is the node which arrives at first {@link DeltaDiscoveryRequest}
+   * @param request the delta discovery request sent by the envoy instance
+   *
+   * @throws RequestException optionally can throw {@link RequestException} with custom status. That status
+   *     will be returned to the client and the stream will be closed with error.
+   */
+  default void onStreamDeltaRequest(long streamId, Node  node, DeltaDiscoveryRequest request) {
+
+  }
+
+  /**
    * {@code onStreamResponse} is called just before each {@link DiscoveryResponse} that is sent on the stream.
    *
    * @param streamId an ID for this stream that is only unique to this discovery server instance
@@ -65,6 +82,22 @@ public interface DiscoveryServerCallbacks {
    * @param response the discovery response sent by the discovery server
    */
   default void onStreamResponse(long streamId, DiscoveryRequest request, DiscoveryResponse response) {
+
+  }
+
+  /**
+   * {@code onStreamResponse} is called just before each {@link DiscoveryResponse} that is sent on the stream.
+   *
+   * @param streamId an ID for this stream that is only unique to this discovery server instance
+   * @param node is the node which arrives at first {@link DeltaDiscoveryRequest}
+   * @param request the discovery request sent by the envoy instance
+   * @param response the discovery response sent by the discovery server
+   */
+  default void onStreamDeltaResponse(
+      long streamId,
+      Node node,
+      DeltaDiscoveryRequest request,
+      DeltaDiscoveryResponse response) {
 
   }
 }
