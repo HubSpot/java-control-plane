@@ -1,13 +1,17 @@
 package io.envoyproxy.controlplane.v3.cache;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.protobuf.Message;
 import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryRequest;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryRequest;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -18,7 +22,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
+import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -188,8 +192,12 @@ public class SimpleCache<T> implements SnapshotCache<T> {
 
   @Override
   public DeltaWatch createDeltaWatch(DeltaDiscoveryRequest request,
-                                     Map<String, String> trackedResources,
-                                     Consumer<DeltaResponse> responseConsumer) {
+                                     String requesterVersion,
+                                     Map<String, String> resourceVersions,
+                                     Set<String> pendingResources,
+                                     boolean isWildcard,
+                                     Consumer<DeltaResponse> responseConsumer,
+                                     boolean hasClusterChanged) {
     T group = groups.hash(request.getNode());
     // even though we're modifying, we take a readLock to allow multiple watches to be created in parallel since it
     // doesn't conflict
@@ -200,55 +208,102 @@ public class SimpleCache<T> implements SnapshotCache<T> {
       status.setLastWatchRequestTime(System.currentTimeMillis());
 
       Snapshot snapshot = snapshots.get(group);
-      DeltaWatch watch = new DeltaWatch(request, responseConsumer);
+      String version = snapshot == null ? "" : snapshot.version(request.getTypeUrl());
+      DeltaWatch watch = new DeltaWatch(request,
+          ImmutableMap.copyOf(resourceVersions),
+          ImmutableSet.copyOf(pendingResources),
+          requesterVersion,
+          isWildcard,
+          responseConsumer);
 
+      // If no snapshot, leave an open watch.
       if (snapshot == null) {
-        long watchId = watchCount.incrementAndGet();
+        long watchId = setDeltaWatch(status, watch);
         if (LOGGER.isDebugEnabled()) {
-          LOGGER.debug("open delta watch {} for {}[{}] from node {}, nonce {}",
+          LOGGER.debug("open watch {} for {}[{}] from node {} for version {}",
               watchId,
               request.getTypeUrl(),
-              String.join(", ", request.getResourceNamesSubscribeList()),
+              String.join(", ", watch.trackedResources().keySet()),
               group,
-              request.getResponseNonce());
+              requesterVersion);
         }
 
-        status.setDeltaWatch(watchId, watch);
-
-        watch.setStop(() -> status.removeWatch(watchId));
         return watch;
       }
 
-      if (request.getResourceNamesSubscribeCount() != 0) {
-        // response must include requested resources
-      }
-
-      Set<String> requestedResources = ImmutableSet.copyOf(request.getResourceNamesList());
-
-      // Otherwise, the watch may be responded immediately
-      boolean responded = respondDelta(watch, snapshot, group);
-
-      if (!responded) {
-        long watchId = watchCount.incrementAndGet();
-
-        if (LOGGER.isDebugEnabled()) {
-          LOGGER.debug("did not respond immediately, leaving open watch {} for {}[{}] from node {} for version {}",
-              watchId,
-              request.getTypeUrl(),
-              String.join(", ", request.getResourceNamesList()),
-              group,
-              request.getVersionInfo());
+      // If the requested version is up-to-date or missing a response, leave an open watch.
+      if (version.equals(requesterVersion)) {
+        // If the request is not wildcard and is asking for resources and we have them, we should respond immediately.
+        if (!isWildcard && request.getResourceNamesSubscribeCount() != 0) {
+          // If any of the pending resources are in the snapshot respond immediately. If not we'll fall back to
+          // version comparisons.
+          Map<String, SnapshotResource<?>> resources = snapshot.resources(request.getTypeUrl());
+          Map<String, SnapshotResource<?>> requestedResources = watch.pendingResources()
+              .stream()
+              .filter(resources::containsKey)
+              .collect(ImmutableMap.toImmutableMap(Function.identity(), resources::get));
+          ResponseState responseState = respondDelta(watch,
+              requestedResources,
+              Collections.emptyList(),
+              version,
+              group);
+          if (responseState.equals(ResponseState.RESPONDED) || responseState.equals(ResponseState.CANCELLED)) {
+            return watch;
+          }
+        } else if (hasClusterChanged && request.getTypeUrl().equals(Resources.ENDPOINT_TYPE_URL)) {
+          ResponseState responseState = respondDeltaTracked(
+              watch,
+              snapshot.resources(request.getTypeUrl()),
+              version,
+              group);
+          if (responseState.equals(ResponseState.RESPONDED) || responseState.equals(ResponseState.CANCELLED)) {
+            return watch;
+          }
         }
 
-        status.setWatch(watchId, watch);
+        long watchId = setDeltaWatch(status, watch);
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("open watch {} for {}[{}] from node {} for version {}",
+              watchId,
+              request.getTypeUrl(),
+              String.join(", ", watch.trackedResources().keySet()),
+              group,
+              requesterVersion);
+        }
 
-        watch.setStop(() -> status.removeWatch(watchId));
+        return watch;
+      }
+
+      // Otherwise, version is different, the watch may be responded immediately
+      ResponseState responseState = respondDeltaTracked(watch,
+          snapshot.resources(request.getTypeUrl()),
+          version,
+          group);
+      if (responseState.equals(ResponseState.RESPONDED) || responseState.equals(ResponseState.CANCELLED)) {
+        return watch;
+      }
+
+      long watchId = setDeltaWatch(status, watch);
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("did not respond immediately, leaving open watch {} for {}[{}] from node {} for version {}",
+            watchId,
+            request.getTypeUrl(),
+            String.join(", ", watch.trackedResources().keySet()),
+            group,
+            requesterVersion);
       }
 
       return watch;
     } finally {
       readLock.unlock();
     }
+  }
+
+  private long setDeltaWatch(CacheStatusInfo<T> status, DeltaWatch watch) {
+    long watchId = watchCount.incrementAndGet();
+    status.setDeltaWatch(watchId, watch);
+    watch.setStop(() -> status.removeDeltaWatch(watchId));
+    return watchId;
   }
 
   /**
@@ -280,10 +335,11 @@ public class SimpleCache<T> implements SnapshotCache<T> {
   public synchronized void setSnapshot(T group, Snapshot snapshot) {
     // we take a writeLock to prevent watches from being created while we update the snapshot
     ConcurrentMap<String, CacheStatusInfo<T>> status;
+    Snapshot previousSnapshot;
     writeLock.lock();
     try {
       // Update the existing snapshot entry.
-      snapshots.put(group, snapshot);
+      previousSnapshot = snapshots.put(group, snapshot);
       status = statuses.get(group);
     } finally {
       writeLock.unlock();
@@ -294,7 +350,7 @@ public class SimpleCache<T> implements SnapshotCache<T> {
     }
 
     // Responses should be in specific order and TYPE_URLS has a list of resources in the right order.
-    respondWithSpecificOrder(group, snapshot, status);
+    respondWithSpecificOrder(group, previousSnapshot, snapshot, status);
   }
 
   /**
@@ -318,6 +374,7 @@ public class SimpleCache<T> implements SnapshotCache<T> {
 
   @VisibleForTesting
   protected void respondWithSpecificOrder(T group,
+                                          Snapshot previousSnapshot,
                                           Snapshot snapshot,
                                           ConcurrentMap<String, CacheStatusInfo<T>> statusMap) {
     for (String typeUrl : Resources.TYPE_URLS) {
@@ -327,9 +384,6 @@ public class SimpleCache<T> implements SnapshotCache<T> {
       }
 
       status.watchesRemoveIf((id, watch) -> {
-        if (!watch.request().getTypeUrl().equals(typeUrl)) {
-          return false;
-        }
         String version = snapshot.version(watch.request().getTypeUrl(), watch.request().getResourceNamesList());
 
         if (!watch.request().getVersionInfo().equals(version)) {
@@ -349,35 +403,68 @@ public class SimpleCache<T> implements SnapshotCache<T> {
         // Do not discard the watch. The request version is the same as the snapshot version, so we wait to respond.
         return false;
       });
+
+
+      Map<String, SnapshotResource<?>> previousResources = previousSnapshot.resources(typeUrl);
+      Map<String, SnapshotResource<?>> snapshotResources = snapshot.resources(typeUrl);
+
+      Map<String, SnapshotResource<?>> snapshotChangedResources = snapshotResources.entrySet()
+          .stream()
+          .filter(entry -> {
+            SnapshotResource<?> snapshotResource = previousResources.get(entry.getKey());
+            return snapshotResource == null || !snapshotResource.version().equals(entry.getValue().version());
+          })
+          .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
+
+      Set<String> snapshotRemovedResources = previousResources.keySet()
+          .stream()
+          .filter(s -> !snapshotResources.containsKey(s))
+          .collect(ImmutableSet.toImmutableSet());
+
+      status.deltaWatchesRemoveIf((id, watch) -> {
+        String version = snapshot.version(watch.request().getTypeUrl());
+
+        if (!watch.version().equals(version)) {
+          if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("responding to open watch {}[{}] with new version {}",
+                id,
+                String.join(", ", watch.trackedResources().keySet()),
+                version);
+          }
+
+          List<String> removedResources = snapshotRemovedResources.stream()
+              .filter(s -> watch.trackedResources().get(s) != null)
+              .collect(ImmutableList.toImmutableList());
+
+          ResponseState responseState = respondDeltaTracked(watch,
+              snapshotChangedResources,
+              removedResources,
+              version,
+              group);
+          // Discard the watch if it was responded or cancelled.
+          // A new watch will be created for future snapshots once envoy ACKs the response.
+          return ResponseState.RESPONDED.equals(responseState) || ResponseState.CANCELLED.equals(responseState);
+        }
+
+        // Do not discard the watch. The request version is the same as the snapshot version, so we wait to respond.
+        return false;
+      });
     }
   }
 
-  private Response createResponse(DiscoveryRequest request, Map<String, SnapshotResource<?>> resources, String version) {
+  private Response createResponse(DiscoveryRequest request,
+                                  Map<String, SnapshotResource<?>> resources,
+                                  String version) {
     Collection<? extends Message> filtered = request.getResourceNamesList().isEmpty()
         ? resources.values()
         .stream()
         .map(SnapshotResource::resource)
-        .collect(Collectors.toList())
+        .collect(ImmutableList.toImmutableList())
         : request.getResourceNamesList().stream()
         .map(resources::get)
         .filter(Objects::nonNull)
         .map(SnapshotResource::resource)
-        .collect(Collectors.toList());
-
-    return Response.create(request, filtered, version);
-  }
-
-  private DeltaResponse createDeltaResponse(DeltaDiscoveryRequest request, Map<String, SnapshotResource<?>> resources, String version) {
-    Collection<? extends Message> filtered = request.getResourceNamesList().isEmpty()
-        ? resources.values()
-        .stream()
-        .map(SnapshotResource::resource)
-        .collect(Collectors.toList())
-        : request.getResourceNamesList().stream()
-        .map(resources::get)
-        .filter(Objects::nonNull)
-        .map(SnapshotResource::resource)
-        .collect(Collectors.toList());
+        .collect(ImmutableList.toImmutableList());
 
     return Response.create(request, filtered, version);
   }
@@ -388,7 +475,7 @@ public class SimpleCache<T> implements SnapshotCache<T> {
     if (!watch.request().getResourceNamesList().isEmpty() && watch.ads()) {
       Collection<String> missingNames = watch.request().getResourceNamesList().stream()
           .filter(name -> !snapshotResources.containsKey(name))
-          .collect(Collectors.toList());
+          .collect(ImmutableList.toImmutableList());
 
       if (!missingNames.isEmpty()) {
         LOGGER.info(
@@ -431,25 +518,66 @@ public class SimpleCache<T> implements SnapshotCache<T> {
     return false;
   }
 
-  private boolean respondDelta(DeltaWatch watch, Snapshot snapshot, T group) {
-    Map<String, SnapshotResource<?>> snapshotResources = snapshot.resources(watch.request().getTypeUrl());
+  /**
+   * Responds a delta watch using resource version comparison.
+   *
+   * @return if the watch has been responded.
+   */
+  private ResponseState respondDeltaTracked(DeltaWatch watch,
+                                            Map<String, SnapshotResource<?>> snapshotResources,
+                                            String version,
+                                            T group) {
+    List<String> removedResources = watch.trackedResources().keySet()
+        .stream()
+        // remove resources for which client has a tracked version
+        .filter(s -> !snapshotResources.containsKey(s))
+        .collect(ImmutableList.toImmutableList());
 
-    boolean isWildcaard = watch.request().
-    String version = snapshot.version(watch.request().getTypeUrl());
+    return respondDeltaTracked(watch, snapshotResources, removedResources, version, group);
+  }
 
-    LOGGER.debug("responding for {} from node {} with version {}",
-        watch.request().getTypeUrl(),
-        group,
-        version);
+  private ResponseState respondDeltaTracked(DeltaWatch watch,
+                                            Map<String, SnapshotResource<?>> snapshotResources,
+                                            List<String> removedResources,
+                                            String version,
+                                            T group) {
 
-    DeltaResponse response = createDeltaResponse(
+    Map<String, SnapshotResource<?>> resources = snapshotResources.entrySet()
+        .stream()
+        .filter(entry -> {
+          if (watch.pendingResources().contains(entry.getKey())) {
+            return true;
+          }
+          String resourceVersion = watch.trackedResources().get(entry.getKey());
+          if (resourceVersion != null && !entry.getValue().version().equals(resourceVersion)) {
+            return true;
+          }
+          return watch.isWildcard();
+        })
+        .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    return respondDelta(watch, resources, removedResources, version, group);
+  }
+
+  private ResponseState respondDelta(DeltaWatch watch,
+                                     Map<String, SnapshotResource<?>> resources,
+                                     List<String> removedResources,
+                                     String version,
+                                     T group) {
+    if (resources.isEmpty() && removedResources.isEmpty()) {
+      return ResponseState.UNRESPONDED;
+    }
+
+    DeltaResponse response = DeltaResponse.create(
         watch.request(),
-        snapshotResources,
+        resources,
+        removedResources,
         version);
+
 
     try {
       watch.respond(response);
-      return true;
+      return ResponseState.RESPONDED;
     } catch (WatchCancelledException e) {
       LOGGER.error(
           "failed to respond for {} from node {} with version {} because watch was already cancelled",
@@ -458,6 +586,12 @@ public class SimpleCache<T> implements SnapshotCache<T> {
           version);
     }
 
-    return false;
+    return ResponseState.CANCELLED;
+  }
+
+  private enum ResponseState {
+    RESPONDED,
+    UNRESPONDED,
+    CANCELLED
   }
 }

@@ -34,14 +34,21 @@ public interface ConfigWatcher {
 
   /**
    * Returns a new configuration resource {@link Watch} for the given discovery request.
-   *
-   * @param request          the discovery request (node, names, etc.) to use to generate the watch
-   * @param trackedResources resources that are already known to the caller
-   * @param responseConsumer the response handler, used to process outgoing response messages
-   *                         Supported in ADS mode.
+   * @param request           the discovery request (node, names, etc.) to use to generate the watch
+   * @param currentVersion    the last version applied by the caller
+   * @param resourceVersions  resources that are already known to the caller
+   * @param pendingResources  resources that the caller is waiting for
+   * @param isWildcard        indicates if the stream is in wildcard mode
+   * @param responseConsumer  the response handler, used to process outgoing response messages
+   * @param hasClusterChanged indicates if EDS should be sent immediately, even if version has not been changed.
+   *                           Supported in ADS mode.
    */
   DeltaWatch createDeltaWatch(
       DeltaDiscoveryRequest request,
-      Map<String, String> trackedResources,
-      Consumer<DeltaResponse> responseConsumer);
+      String currentVersion,
+      Map<String, String> resourceVersions,
+      Set<String> pendingResources,
+      boolean isWildcard,
+      Consumer<DeltaResponse> responseConsumer,
+      boolean hasClusterChanged);
 }

@@ -115,30 +115,6 @@ public class SimpleCache<T> implements SnapshotCache<T> {
 
       Watch watch = new Watch(ads, request, responseConsumer);
 
-      if (snapshot != null) {
-        Set<String> requestedResources = ImmutableSet.copyOf(request.getResourceNamesList());
-
-        // If the request is asking for resources we haven't sent to the proxy yet, see if we have additional resources.
-        if (!knownResourceNames.equals(requestedResources)) {
-          Sets.SetView<String> newResourceHints = Sets.difference(requestedResources, knownResourceNames);
-
-          // If any of the newly requested resources are in the snapshot respond immediately. If not we'll fall back to
-          // version comparisons.
-          if (snapshot.resources(request.getTypeUrl())
-              .keySet()
-              .stream()
-              .anyMatch(newResourceHints::contains)) {
-            respond(watch, snapshot, group);
-
-            return watch;
-          }
-        } else if (hasClusterChanged && request.getTypeUrl().equals(Resources.ENDPOINT_TYPE_URL)) {
-          respond(watch, snapshot, group);
-
-          return watch;
-        }
-      }
-
       // If the requested version is up-to-date or missing a response, leave an open watch.
       if (snapshot == null || request.getVersionInfo().equals(version)) {
         long watchId = watchCount.incrementAndGet();
@@ -155,6 +131,27 @@ public class SimpleCache<T> implements SnapshotCache<T> {
         status.setWatch(watchId, watch);
 
         watch.setStop(() -> status.removeWatch(watchId));
+
+        return watch;
+      }
+
+      Set<String> requestedResources = ImmutableSet.copyOf(request.getResourceNamesList());
+      // If the request is asking for resources we haven't sent to the proxy yet, see if we have additional resources.
+      if (!knownResourceNames.equals(requestedResources)) {
+        Sets.SetView<String> newResourceHints = Sets.difference(requestedResources, knownResourceNames);
+
+        // If any of the newly requested resources are in the snapshot respond immediately. If not we'll fall back to
+        // version comparisons.
+        if (snapshot.resources(request.getTypeUrl())
+            .keySet()
+            .stream()
+            .anyMatch(newResourceHints::contains)) {
+          respond(watch, snapshot, group);
+
+          return watch;
+        }
+      } else if (hasClusterChanged && request.getTypeUrl().equals(Resources.ENDPOINT_TYPE_URL)) {
+        respond(watch, snapshot, group);
 
         return watch;
       }

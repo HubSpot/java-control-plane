@@ -22,28 +22,36 @@ import org.junit.Test;
 public class ResourcesTest {
 
   private static final boolean ADS = ThreadLocalRandom.current().nextBoolean();
-  private static final String CLUSTER_NAME  = "cluster0";
+  private static final String CLUSTER_NAME = "cluster0";
   private static final String LISTENER_NAME = "listener0";
-  private static final String ROUTE_NAME    = "route0";
+  private static final String ROUTE_NAME = "route0";
 
   private static final int ENDPOINT_PORT = ThreadLocalRandom.current().nextInt(10000, 20000);
   private static final int LISTENER_PORT = ThreadLocalRandom.current().nextInt(20000, 30000);
 
-  private static final Cluster CLUSTER = TestResources.createCluster(CLUSTER_NAME);
-  private static final ClusterLoadAssignment ENDPOINT = TestResources.createEndpoint(CLUSTER_NAME, ENDPOINT_PORT);
-  private static final Listener LISTENER = TestResources.createListener(ADS, LISTENER_NAME, LISTENER_PORT, ROUTE_NAME);
-  private static final RouteConfiguration ROUTE = TestResources.createRoute(ROUTE_NAME, CLUSTER_NAME);
+  private static final SnapshotResource<Cluster> CLUSTER = SnapshotResource.create(
+      TestResources.createCluster(CLUSTER_NAME),
+      "1");
+  private static final SnapshotResource<ClusterLoadAssignment> ENDPOINT = SnapshotResource.create(
+      TestResources.createEndpoint(CLUSTER_NAME, ENDPOINT_PORT),
+      "1");
+  private static final SnapshotResource<Listener> LISTENER = SnapshotResource.create(
+      TestResources.createListener(ADS, LISTENER_NAME, LISTENER_PORT, ROUTE_NAME),
+      "1");
+  private static final SnapshotResource<RouteConfiguration> ROUTE = SnapshotResource.create(
+      TestResources.createRoute(ROUTE_NAME, CLUSTER_NAME),
+      "1");
 
   @Test
   public void getResourceNameReturnsExpectedNameForValidResourceMessage() {
-    Map<Message, String> cases = ImmutableMap.of(
+    ImmutableMap<SnapshotResource<? extends Message>, String> cases = ImmutableMap.of(
         CLUSTER, CLUSTER_NAME,
         ENDPOINT, CLUSTER_NAME,
         LISTENER, LISTENER_NAME,
         ROUTE, ROUTE_NAME);
 
     cases.forEach((resource, expectedName) ->
-        assertThat(Resources.getResourceName(resource)).isEqualTo(expectedName));
+        assertThat(Resources.getResourceName(resource.resource())).isEqualTo(expectedName));
   }
 
   @Test
@@ -71,14 +79,15 @@ public class ResourcesTest {
         .setType(Cluster.DiscoveryType.EDS)
         .build();
 
-    Map<Collection<Message>, Set<String>> cases = ImmutableMap.<Collection<Message>, Set<String>>builder()
-        .put(ImmutableList.of(CLUSTER), ImmutableSet.of(CLUSTER_NAME))
-        .put(ImmutableList.of(clusterWithServiceName), ImmutableSet.of(clusterServiceName))
-        .put(ImmutableList.of(ENDPOINT), ImmutableSet.of())
-        .put(ImmutableList.of(LISTENER), ImmutableSet.of(ROUTE_NAME))
-        .put(ImmutableList.of(ROUTE), ImmutableSet.of())
-        .put(ImmutableList.of(CLUSTER, ENDPOINT, LISTENER, ROUTE), ImmutableSet.of(CLUSTER_NAME, ROUTE_NAME))
-        .build();
+    Map<Collection<SnapshotResource<Message>>, Set<String>> cases =
+        ImmutableMap.<Collection<SnapshotResource<Message>>, Set<String>>builder()
+            .put((Collection) ImmutableList.of(CLUSTER), ImmutableSet.of(CLUSTER_NAME))
+            .put(ImmutableList.of(clusterWithServiceName), ImmutableSet.of(clusterServiceName))
+            .put(ImmutableList.of(ENDPOINT), ImmutableSet.of())
+            .put(ImmutableList.of(LISTENER), ImmutableSet.of(ROUTE_NAME))
+            .put(ImmutableList.of(ROUTE), ImmutableSet.of())
+            .put(ImmutableList.of(CLUSTER, ENDPOINT, LISTENER, ROUTE), ImmutableSet.of(CLUSTER_NAME, ROUTE_NAME))
+            .build();
 
     cases.forEach((resources, refs) ->
         assertThat(Resources.getResourceReferences(resources)).containsExactlyElementsOf(refs));

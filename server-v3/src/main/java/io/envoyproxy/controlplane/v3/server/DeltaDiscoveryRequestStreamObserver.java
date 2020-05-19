@@ -1,11 +1,7 @@
 package io.envoyproxy.controlplane.v3.server;
 
-import static com.google.common.base.Strings.isNullOrEmpty;
-
-import com.google.common.collect.ImmutableSet;
 import io.envoyproxy.controlplane.v3.cache.DeltaResponse;
 import io.envoyproxy.controlplane.v3.cache.DeltaWatch;
-import io.envoyproxy.controlplane.v3.cache.Resources;
 import io.envoyproxy.controlplane.v3.server.exception.RequestException;
 import io.envoyproxy.envoy.config.core.v3.Node;
 import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryRequest;
@@ -14,6 +10,8 @@ import io.envoyproxy.envoy.service.discovery.v3.Resource;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -40,7 +38,6 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
   private volatile long streamNonce;
   private volatile boolean isClosing;
   private Node node;
-  private boolean isWildcard;
 
   DeltaDiscoveryRequestStreamObserver(String defaultTypeUrl,
                                       StreamObserver<DeltaDiscoveryResponse> responseObserver,
@@ -58,53 +55,87 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
 
   @Override
   public void onNext(DeltaDiscoveryRequest request) {
-    if (node == null && request.hasNode()) {
-      node = request.getNode();
-    }
     String requestTypeUrl = request.getTypeUrl().isEmpty() ? defaultTypeUrl : request.getTypeUrl();
     if (node == null && request.hasNode()) {
       node = request.getNode();
-      isWildcard = request.getResourceNamesSubscribeCount() == 0
-          && (requestTypeUrl.equals(Resources.CLUSTER_TYPE_URL) || requestTypeUrl.equals(Resources.LISTENER_TYPE_URL));
     }
-    String nonce = request.getResponseNonce();
+
+    final DeltaDiscoveryRequest completeRequest;
+    if (!request.hasNode() || request.getTypeUrl().isEmpty()) {
+      completeRequest = request.toBuilder()
+          .setTypeUrl(requestTypeUrl)
+          .setNode(node)
+          .build();
+    } else {
+      completeRequest = request;
+    }
+
+    String nonce = completeRequest.getResponseNonce();
 
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug("[{}] request {}[{}] with nonce {} from versions {}",
           streamId,
           requestTypeUrl,
-          String.join(", ", request.getResourceNamesSubscribeList()),
+          String.join(", ", completeRequest.getResourceNamesSubscribeList()),
           nonce,
-          request.getInitialResourceVersionsMap());
+          completeRequest.getInitialResourceVersionsMap());
     }
 
     try {
-      discoverySever.callbacks.forEach(cb -> cb.onStreamDeltaRequest(streamId, node, request));
+      discoverySever.callbacks.forEach(cb -> cb.onStreamDeltaRequest(streamId, node, completeRequest));
     } catch (RequestException e) {
       closeWithError(e);
       return;
     }
 
     LatestDeltaDiscoveryResponse latestDiscoveryResponse = latestResponse(requestTypeUrl);
-    String resourceNonce = latestDiscoveryResponse == null ? null : latestDiscoveryResponse.nonce();
-
-    if (isNullOrEmpty(resourceNonce) || resourceNonce.equals(nonce)) {
-      if (!request.hasErrorDetail()) {
-        if (latestDiscoveryResponse == null) {
-          updateTrackedResources(requestTypeUrl, request.getInitialResourceVersionsMap(), ImmutableSet.of());
-        } else {
-          updateTrackedResources(requestTypeUrl,
-              latestDiscoveryResponse.resourceVersions(),
-              latestDiscoveryResponse.removedResources());
-        }
-      }
-
-      computeWatch(requestTypeUrl, () -> discoverySever.configWatcher.createDeltaWatch(
-          request,
-          trackedResources(requestTypeUrl),
-          r -> executor.execute(() -> send(r, requestTypeUrl))
-      ));
+    String resourceNonce;
+    String version;
+    if (latestDiscoveryResponse == null) {
+      resourceNonce = null;
+      version = "";
+    } else {
+      resourceNonce = latestDiscoveryResponse.nonce();
+      version = latestDiscoveryResponse.version();
     }
+
+    if (!completeRequest.getResponseNonce().isEmpty() && completeRequest.getResponseNonce().equals(resourceNonce)) {
+      // envoy is acking o nacking previous response
+      if (!completeRequest.hasErrorDetail()) {
+        // envoy has acked resources
+        updateTrackedResources(requestTypeUrl,
+            latestDiscoveryResponse.resourceVersions(),
+            request.getResourceNamesSubscribeList(),
+            latestDiscoveryResponse.removedResources(),
+            request.getResourceNamesUnsubscribeList());
+      }
+    } else {
+      // envoy is requesting new resources
+      if (latestDiscoveryResponse == null) {
+        // first request
+        updateTrackedResources(requestTypeUrl,
+            request.getInitialResourceVersionsMap(),
+            request.getResourceNamesSubscribeList(),
+            Collections.emptyList(),
+            request.getResourceNamesUnsubscribeList());
+      } else {
+        updateTrackedResources(requestTypeUrl,
+            Collections.emptyMap(),
+            request.getResourceNamesSubscribeList(),
+            Collections.emptyList(),
+            request.getResourceNamesUnsubscribeList());
+      }
+    }
+
+    computeWatch(requestTypeUrl, () -> discoverySever.configWatcher.createDeltaWatch(
+        completeRequest,
+        version,
+        resourceVersions(requestTypeUrl),
+        pendingResources(requestTypeUrl),
+        isWildcard(requestTypeUrl),
+        r -> executor.execute(() -> send(r, requestTypeUrl)),
+        hasClusterChanged
+    ));
   }
 
   @Override
@@ -156,10 +187,17 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
   private void send(DeltaResponse response, String typeUrl) {
     String nonce = Long.toString(streamNonceUpdater.getAndIncrement(this));
 
-    // TODO: Collection<Any> resources = discoverySever.protoResourcesSerializer.serialize(response.resources());
     DeltaDiscoveryResponse discoveryResponse = DeltaDiscoveryResponse.newBuilder()
         .setSystemVersionInfo(response.version())
-        .addAllResources(response.resources())
+        .addAllResources(response.resources()
+            .entrySet()
+            .stream()
+            .map(entry -> Resource.newBuilder()
+                .setName(entry.getKey())
+                .setResource(discoverySever.protoResourcesSerializer.serialize(entry.getValue().resource()))
+                .setVersion(entry.getValue().version())
+                .build())
+            .collect(Collectors.toList()))
         .addAllRemovedResources(response.removedResources())
         .setTypeUrl(typeUrl)
         .setNonce(nonce)
@@ -167,7 +205,8 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
 
     LOGGER.debug("[{}] response {} with nonce {} version {}", streamId, typeUrl, nonce, response.version());
 
-    discoverySever.callbacks.forEach(cb -> cb.onStreamDeltaResponse(streamId, node, response.request(), discoveryResponse));
+    discoverySever.callbacks.forEach(cb ->
+        cb.onStreamDeltaResponse(streamId, node, response.request(), discoveryResponse));
 
     // Store the latest response *before* we send the response. This ensures that by the time the request
     // is processed the map is guaranteed to be updated. Doing it afterwards leads to a race conditions
@@ -176,7 +215,11 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
         typeUrl,
         LatestDeltaDiscoveryResponse.create(
             nonce,
-            response.resources().stream().collect(Collectors.toMap(Resource::getName, Resource::getVersion)),
+            response.version(),
+            response.resources()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().version())),
             response.removedResources()
         )
     );
@@ -201,11 +244,17 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
 
   abstract void setLatestResponse(String typeUrl, LatestDeltaDiscoveryResponse response);
 
-  abstract Map<String, String> trackedResources(String typeUrl);
+  abstract Map<String, String> resourceVersions(String typeUrl);
+
+  abstract Set<String> pendingResources(String typeUrl);
+
+  abstract boolean isWildcard(String typeUrl);
 
   abstract void updateTrackedResources(String typeUrl,
-                                       Map<String, String> resourceVersions,
-                                       Set<String> removedResources);
+                                       Map<String, String> resourcesVersions,
+                                       List<String> resourceNamesSubscribe,
+                                       List<String> removedResources,
+                                       List<String> resourceNamesUnsubscribe);
 
   abstract void computeWatch(String typeUrl, Supplier<DeltaWatch> watchCreator);
 }

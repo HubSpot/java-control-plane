@@ -3,6 +3,7 @@ package io.envoyproxy.controlplane.v3.cache;
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.Message;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collector;
 import java.util.stream.StreamSupport;
@@ -14,7 +15,7 @@ public abstract class SnapshotResources<T extends Message> {
    * Returns a new {@link SnapshotResources} instance.
    *
    * @param resources the resources in this collection
-   * @param version   the global version associated with the resources in this collection
+   * @param version   the version associated with the resources in this collection
    * @param <T>       the type of resources in this collection
    */
   public static <T extends Message> SnapshotResources<T> create(
@@ -22,7 +23,23 @@ public abstract class SnapshotResources<T extends Message> {
       String version) {
     return new AutoValue_SnapshotResources<>(
         resourcesMap(resources),
-        version
+        (r) -> version
+    );
+  }
+
+  /**
+   * Returns a new {@link SnapshotResources} instance.
+   *
+   * @param resources       the resources in this collection
+   * @param versionResolver version resolver for the resources in this collection
+   * @param <T>             the type of resources in this collection
+   */
+  public static <T extends Message> SnapshotResources<T> create(
+      Iterable<SnapshotResource<T>> resources,
+      ResourceVersionResolver versionResolver) {
+    return new AutoValue_SnapshotResources<>(
+        resourcesMap(resources),
+        versionResolver
     );
   }
 
@@ -43,7 +60,23 @@ public abstract class SnapshotResources<T extends Message> {
   public abstract Map<String, SnapshotResource<T>> resources();
 
   /**
-   * Returns the global version associated with all resources in this collection.
+   * Returns the version associated with all resources in this collection.
    */
-  public abstract String version();
+  public String version() {
+    return resourceVersionResolver().version();
+  }
+
+  /**
+   * Returns the version associated with the requested resources in this collection.
+   *
+   * @param resourceNames list of list of requested resources.
+   */
+  public String version(List<String> resourceNames) {
+    return resourceVersionResolver().version(resourceNames);
+  }
+
+  /**
+   * Returns the version resolver associated with this resources in this collection.
+   */
+  public abstract ResourceVersionResolver resourceVersionResolver();
 }

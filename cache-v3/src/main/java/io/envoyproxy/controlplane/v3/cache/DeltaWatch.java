@@ -1,6 +1,8 @@
 package io.envoyproxy.controlplane.v3.cache;
 
 import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryRequest;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.function.Consumer;
 
@@ -13,17 +15,31 @@ public class DeltaWatch {
       AtomicIntegerFieldUpdater.newUpdater(DeltaWatch.class, "isCancelled");
   private final DeltaDiscoveryRequest request;
   private final Consumer<DeltaResponse> responseConsumer;
+  private final Map<String, String> resourceVersions;
+  private final Set<String> pendingResources;
+  private final boolean isWildcard;
+  private final String version;
   private volatile int isCancelled = 0;
   private Runnable stop;
 
   /**
    * Construct a watch.
-   *
    * @param request          the original request for the watch
+   * @param version          indicates the stream current version
+   * @param isWildcard       indicates if the stream is in wildcard mode
    * @param responseConsumer handler for outgoing response messages
    */
-  public DeltaWatch(DeltaDiscoveryRequest request, Consumer<DeltaResponse> responseConsumer) {
+  public DeltaWatch(DeltaDiscoveryRequest request,
+                    Map<String, String> resourceVersions,
+                    Set<String> pendingResources,
+                    String version,
+                    boolean isWildcard,
+                    Consumer<DeltaResponse> responseConsumer) {
     this.request = request;
+    this.resourceVersions = resourceVersions;
+    this.pendingResources = pendingResources;
+    this.version = version;
+    this.isWildcard = isWildcard;
     this.responseConsumer = responseConsumer;
   }
 
@@ -51,6 +67,34 @@ public class DeltaWatch {
    */
   public DeltaDiscoveryRequest request() {
     return request;
+  }
+
+  /**
+   * Returns the tracked resources for the watch.
+   */
+  public Map<String, String> trackedResources() {
+    return resourceVersions;
+  }
+
+  /**
+   * Returns the pending resources for the watch.
+   */
+  public Set<String> pendingResources() {
+    return pendingResources;
+  }
+
+  /**
+   * Returns the stream current version.
+   */
+  public String version() {
+    return version;
+  }
+
+  /**
+   * Indicates if the stream is in wildcard mode.
+   */
+  public boolean isWildcard() {
+    return isWildcard;
   }
 
   /**

@@ -12,6 +12,7 @@ import io.envoyproxy.controlplane.v3.cache.NodeGroup;
 import io.envoyproxy.controlplane.v3.cache.Resources;
 import io.envoyproxy.controlplane.v3.cache.SimpleCache;
 import io.envoyproxy.controlplane.v3.cache.Snapshot;
+import io.envoyproxy.controlplane.v3.cache.SnapshotResource;
 import io.envoyproxy.controlplane.v3.cache.TestResources;
 import io.envoyproxy.envoy.config.cluster.v3.Cluster;
 import io.envoyproxy.envoy.config.core.v3.AggregatedConfigSource;
@@ -169,13 +170,13 @@ public class DiscoveryServerAdsWarmingClusterIT {
 
     // here we have new version of resources other than CDS.
     return Snapshot.create(
-        ImmutableList.of(cluster),
+        ImmutableList.of(SnapshotResource.create(cluster, "1")),
         "1",
-        ImmutableList.of(endpoint),
+        ImmutableList.of(SnapshotResource.create(endpoint, "1")),
         "2",
-        ImmutableList.of(listener),
+        ImmutableList.of(SnapshotResource.create(listener, "1")),
         "2",
-        ImmutableList.of(route),
+        ImmutableList.of(SnapshotResource.create(route, "1")),
         "2",
         ImmutableList.of(),
         "2");
@@ -196,7 +197,7 @@ public class DiscoveryServerAdsWarmingClusterIT {
 
     @Override
     protected void respondWithSpecificOrder(T group,
-                                            Snapshot snapshot,
+                                            Snapshot previousSnapshot, Snapshot snapshot,
                                             ConcurrentMap<String, CacheStatusInfo<T>> statusMap) {
       // This code has been removed to show specific case which is hard to reproduce in integration test:
       //      1. Envoy connects to control-plane

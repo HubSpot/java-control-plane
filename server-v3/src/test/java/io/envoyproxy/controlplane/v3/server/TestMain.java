@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.protobuf.Duration;
 import io.envoyproxy.controlplane.v3.cache.SimpleCache;
 import io.envoyproxy.controlplane.v3.cache.Snapshot;
+import io.envoyproxy.controlplane.v3.cache.SnapshotResource;
 import io.envoyproxy.envoy.config.cluster.v3.Cluster;
 import io.envoyproxy.envoy.config.core.v3.Address;
 import io.envoyproxy.envoy.config.core.v3.SocketAddress;
@@ -32,25 +33,27 @@ public class TestMain {
         GROUP,
         Snapshot.create(
             ImmutableList.of(
-                Cluster.newBuilder()
-                    .setName("cluster0")
-                    .setConnectTimeout(Duration.newBuilder().setSeconds(5))
-                    .setType(Cluster.DiscoveryType.STATIC)
-                    .setLoadAssignment(ClusterLoadAssignment.newBuilder()
-                        .addEndpoints(LocalityLbEndpoints.newBuilder()
-                            .addLbEndpoints(LbEndpoint.newBuilder()
-                                .setEndpoint(Endpoint.newBuilder()
-                                    .setAddress(Address.newBuilder()
-                                        .setSocketAddress(SocketAddress.newBuilder()
-                                            .setAddress("127.0.0.1")
-                                            .setPortValue(1234)
+                SnapshotResource.create(
+                    Cluster.newBuilder()
+                        .setName("cluster0")
+                        .setConnectTimeout(Duration.newBuilder().setSeconds(5))
+                        .setType(Cluster.DiscoveryType.STATIC)
+                        .setLoadAssignment(ClusterLoadAssignment.newBuilder()
+                            .addEndpoints(LocalityLbEndpoints.newBuilder()
+                                .addLbEndpoints(LbEndpoint.newBuilder()
+                                    .setEndpoint(Endpoint.newBuilder()
+                                        .setAddress(Address.newBuilder()
+                                            .setSocketAddress(SocketAddress.newBuilder()
+                                                .setAddress("127.0.0.1")
+                                                .setPortValue(1234)
+                                                .build())
                                             .build())
                                         .build())
                                     .build())
                                 .build())
                             .build())
-                        .build())
-                    .build()),
+                        .build(),
+                    "1")),
             ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of(),
@@ -80,7 +83,8 @@ public class TestMain {
         GROUP,
         Snapshot.create(
             ImmutableList.of(
-                Cluster.newBuilder()
+                SnapshotResource.create(
+                    Cluster.newBuilder()
                     .setName("cluster1")
                     .setConnectTimeout(Duration.newBuilder().setSeconds(5))
                     .setType(Cluster.DiscoveryType.STATIC)
@@ -98,7 +102,8 @@ public class TestMain {
                                 .build())
                             .build())
                         .build())
-                    .build()),
+                    .build(),
+                    "1")),
             ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of(),

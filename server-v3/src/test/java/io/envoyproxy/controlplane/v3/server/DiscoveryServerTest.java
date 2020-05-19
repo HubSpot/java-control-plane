@@ -11,6 +11,8 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 import com.google.protobuf.Message;
 import io.envoyproxy.controlplane.v3.cache.ConfigWatcher;
+import io.envoyproxy.controlplane.v3.cache.DeltaResponse;
+import io.envoyproxy.controlplane.v3.cache.DeltaWatch;
 import io.envoyproxy.controlplane.v3.cache.Resources;
 import io.envoyproxy.controlplane.v3.cache.Response;
 import io.envoyproxy.controlplane.v3.cache.TestResources;
@@ -27,6 +29,7 @@ import io.envoyproxy.envoy.service.cluster.v3.ClusterDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.service.cluster.v3.ClusterDiscoveryServiceGrpc.ClusterDiscoveryServiceStub;
 import io.envoyproxy.envoy.service.discovery.v3.AggregatedDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.service.discovery.v3.AggregatedDiscoveryServiceGrpc.AggregatedDiscoveryServiceStub;
+import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryRequest;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryRequest;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryResponse;
 import io.envoyproxy.envoy.service.endpoint.v3.EndpointDiscoveryServiceGrpc;
@@ -57,7 +60,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-
 import org.assertj.core.api.Condition;
 import org.junit.Rule;
 import org.junit.Test;
@@ -66,10 +68,10 @@ public class DiscoveryServerTest {
 
   private static final boolean ADS = ThreadLocalRandom.current().nextBoolean();
 
-  private static final String CLUSTER_NAME  = "cluster0";
+  private static final String CLUSTER_NAME = "cluster0";
   private static final String LISTENER_NAME = "listener0";
-  private static final String ROUTE_NAME    = "route0";
-  private static final String SECRET_NAME   = "secret0";
+  private static final String ROUTE_NAME = "route0";
+  private static final String SECRET_NAME = "secret0";
 
   private static final int ENDPOINT_PORT = Ports.getAvailablePort();
   private static final int LISTENER_PORT = Ports.getAvailablePort();
@@ -89,6 +91,16 @@ public class DiscoveryServerTest {
 
   @Rule
   public final GrpcServerRule grpcServer = new GrpcServerRule().directExecutor();
+
+  private static Table<String, String, Collection<? extends Message>> createResponses() {
+    return ImmutableTable.<String, String, Collection<? extends Message>>builder()
+        .put(Resources.CLUSTER_TYPE_URL, VERSION, ImmutableList.of(CLUSTER))
+        .put(Resources.ENDPOINT_TYPE_URL, VERSION, ImmutableList.of(ENDPOINT))
+        .put(Resources.LISTENER_TYPE_URL, VERSION, ImmutableList.of(LISTENER))
+        .put(Resources.ROUTE_TYPE_URL, VERSION, ImmutableList.of(ROUTE))
+        .put(Resources.SECRET_TYPE_URL, VERSION, ImmutableList.of(SECRET))
+        .build();
+  }
 
   @Test
   public void testAggregatedHandler() throws InterruptedException {
@@ -163,11 +175,11 @@ public class DiscoveryServerTest {
     grpcServer.getServiceRegistry().addService(server.getRouteDiscoveryServiceImpl());
     grpcServer.getServiceRegistry().addService(server.getSecretDiscoveryServiceImpl());
 
-    ClusterDiscoveryServiceStub clusterStub  = ClusterDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
+    ClusterDiscoveryServiceStub clusterStub = ClusterDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
     EndpointDiscoveryServiceStub endpointStub = EndpointDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
     ListenerDiscoveryServiceStub listenerStub = ListenerDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
-    RouteDiscoveryServiceStub routeStub    = RouteDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
-    SecretDiscoveryServiceStub secretStub   = SecretDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
+    RouteDiscoveryServiceStub routeStub = RouteDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
+    SecretDiscoveryServiceStub secretStub = SecretDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
 
     for (String typeUrl : Resources.TYPE_URLS) {
       MockDiscoveryResponseObserver responseObserver = new MockDiscoveryResponseObserver();
@@ -364,11 +376,11 @@ public class DiscoveryServerTest {
     grpcServer.getServiceRegistry().addService(server.getRouteDiscoveryServiceImpl());
     grpcServer.getServiceRegistry().addService(server.getSecretDiscoveryServiceImpl());
 
-    ClusterDiscoveryServiceStub clusterStub  = ClusterDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
+    ClusterDiscoveryServiceStub clusterStub = ClusterDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
     EndpointDiscoveryServiceStub endpointStub = EndpointDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
     ListenerDiscoveryServiceStub listenerStub = ListenerDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
-    RouteDiscoveryServiceStub routeStub    = RouteDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
-    SecretDiscoveryServiceStub secretStub   = SecretDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
+    RouteDiscoveryServiceStub routeStub = RouteDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
+    SecretDiscoveryServiceStub secretStub = SecretDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
 
     for (String typeUrl : Resources.TYPE_URLS) {
       MockDiscoveryResponseObserver responseObserver = new MockDiscoveryResponseObserver();
@@ -648,11 +660,11 @@ public class DiscoveryServerTest {
     grpcServer.getServiceRegistry().addService(server.getRouteDiscoveryServiceImpl());
     grpcServer.getServiceRegistry().addService(server.getSecretDiscoveryServiceImpl());
 
-    ClusterDiscoveryServiceStub clusterStub  = ClusterDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
+    ClusterDiscoveryServiceStub clusterStub = ClusterDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
     EndpointDiscoveryServiceStub endpointStub = EndpointDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
     ListenerDiscoveryServiceStub listenerStub = ListenerDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
-    RouteDiscoveryServiceStub routeStub    = RouteDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
-    SecretDiscoveryServiceStub secretStub    = SecretDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
+    RouteDiscoveryServiceStub routeStub = RouteDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
+    SecretDiscoveryServiceStub secretStub = SecretDiscoveryServiceGrpc.newStub(grpcServer.getChannel());
 
     for (String typeUrl : Resources.TYPE_URLS) {
       MockDiscoveryResponseObserver responseObserver = new MockDiscoveryResponseObserver();
@@ -950,16 +962,6 @@ public class DiscoveryServerTest {
     assertThat(callbacks.streamResponseCount).hasValue(0);
   }
 
-  private static Table<String, String, Collection<? extends Message>> createResponses() {
-    return ImmutableTable.<String, String, Collection<? extends Message>>builder()
-        .put(Resources.CLUSTER_TYPE_URL, VERSION, ImmutableList.of(CLUSTER))
-        .put(Resources.ENDPOINT_TYPE_URL, VERSION, ImmutableList.of(ENDPOINT))
-        .put(Resources.LISTENER_TYPE_URL, VERSION, ImmutableList.of(LISTENER))
-        .put(Resources.ROUTE_TYPE_URL, VERSION, ImmutableList.of(ROUTE))
-        .put(Resources.SECRET_TYPE_URL, VERSION, ImmutableList.of(SECRET))
-        .build();
-  }
-
   private static class MockConfigWatcher implements ConfigWatcher {
 
     private final boolean closeWatch;
@@ -1016,17 +1018,25 @@ public class DiscoveryServerTest {
 
       return watch;
     }
+
+    @Override
+    public DeltaWatch createDeltaWatch(DeltaDiscoveryRequest request,
+                                       String currentVersion, Map<String, String> trackedResources,
+                                       boolean isWildcard,
+                                       Consumer<DeltaResponse> responseConsumer,
+                                       boolean hasClusterChanged) {
+      return null;
+    }
   }
 
   private static class MockDiscoveryServerCallbacks implements DiscoveryServerCallbacks {
 
+    final Collection<String> assertionErrors = new LinkedList<>();
     private final AtomicInteger streamCloseCount = new AtomicInteger();
     private final AtomicInteger streamCloseWithErrorCount = new AtomicInteger();
     private final AtomicInteger streamOpenCount = new AtomicInteger();
     private final AtomicInteger streamRequestCount = new AtomicInteger();
     private final AtomicInteger streamResponseCount = new AtomicInteger();
-
-    final Collection<String> assertionErrors = new LinkedList<>();
 
     @Override
     public void onStreamClose(long streamId, String typeUrl) {

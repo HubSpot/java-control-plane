@@ -1,6 +1,7 @@
 package io.envoyproxy.controlplane.v3.server;
 
 import io.envoyproxy.controlplane.v3.cache.Snapshot;
+import io.envoyproxy.controlplane.v3.cache.SnapshotResource;
 import io.envoyproxy.controlplane.v3.cache.TestResources;
 import io.envoyproxy.envoy.config.cluster.v3.Cluster;
 import io.envoyproxy.envoy.config.endpoint.v3.ClusterLoadAssignment;
@@ -26,10 +27,10 @@ class TestSnapshots {
     RouteConfiguration route = TestResources.createRoute(routeName, clusterName);
 
     return Snapshot.create(
-        ImmutableList.of(cluster),
-        ImmutableList.of(endpoint),
-        ImmutableList.of(listener),
-        ImmutableList.of(route),
+        ImmutableList.of(SnapshotResource.create(cluster, version)),
+        ImmutableList.of(SnapshotResource.create(endpoint, version)),
+        ImmutableList.of(SnapshotResource.create(listener, version)),
+        ImmutableList.of(SnapshotResource.create(route, version)),
         ImmutableList.of(),
         version);
   }
@@ -49,10 +50,10 @@ class TestSnapshots {
     RouteConfiguration route = TestResources.createRoute(routeName, clusterName);
 
     return Snapshot.create(
-        ImmutableList.of(cluster),
+        ImmutableList.of(SnapshotResource.create(cluster, version)),
         ImmutableList.of(),
-        ImmutableList.of(listener),
-        ImmutableList.of(route),
+        ImmutableList.of(SnapshotResource.create(listener, version)),
+        ImmutableList.of(SnapshotResource.create(route, version)),
         ImmutableList.of(),
         version);
   }
