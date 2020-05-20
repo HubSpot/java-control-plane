@@ -233,8 +233,8 @@ public class SimpleCache<T> implements SnapshotCache<T> {
 
       // If the requested version is up-to-date or missing a response, leave an open watch.
       if (version.equals(requesterVersion)) {
-        // If the request is not wildcard and is asking for resources and we have them, we should respond immediately.
-        if (!isWildcard && request.getResourceNamesSubscribeCount() != 0) {
+        // If the request is not wildcard, we have pending resources and we have them, we should respond immediately.
+        if (!isWildcard && watch.pendingResources().size() != 0) {
           // If any of the pending resources are in the snapshot respond immediately. If not we'll fall back to
           // version comparisons.
           Map<String, SnapshotResource<?>> resources = snapshot.resources(request.getTypeUrl());

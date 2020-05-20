@@ -1,5 +1,6 @@
 package io.envoyproxy.controlplane.v3.server;
 
+import com.google.common.collect.ImmutableMap;
 import io.envoyproxy.controlplane.v3.cache.DeltaResponse;
 import io.envoyproxy.controlplane.v3.cache.DeltaWatch;
 import io.envoyproxy.controlplane.v3.server.exception.RequestException;
@@ -9,12 +10,15 @@ import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryResponse;
 import io.envoyproxy.envoy.service.discovery.v3.Resource;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.grpc.SynchronizationContext;
 import io.grpc.stub.StreamObserver;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -32,8 +36,9 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
   final long streamId;
   private final String defaultTypeUrl;
   private final StreamObserver<DeltaDiscoveryResponse> responseObserver;
-  private final Executor executor;
+  private final ScheduledExecutorService executor;
   private final DiscoveryServer discoverySever;
+  private final SynchronizationContext synchronizationContext;
   volatile boolean hasClusterChanged;
   private volatile long streamNonce;
   private volatile boolean isClosing;
@@ -42,7 +47,7 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
   DeltaDiscoveryRequestStreamObserver(String defaultTypeUrl,
                                       StreamObserver<DeltaDiscoveryResponse> responseObserver,
                                       long streamId,
-                                      Executor executor,
+                                      ScheduledExecutorService executor,
                                       DiscoveryServer discoveryServer) {
     this.defaultTypeUrl = defaultTypeUrl;
     this.responseObserver = responseObserver;
@@ -51,6 +56,9 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
     this.streamNonce = 0;
     this.discoverySever = discoveryServer;
     this.hasClusterChanged = false;
+    this.synchronizationContext = new SynchronizationContext((t, e) -> {
+      LOGGER.error("Uncaught exception in thread {}", t, e);
+    });
   }
 
   @Override
@@ -99,10 +107,15 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
       version = latestDiscoveryResponse.version();
     }
 
-    if (!completeRequest.getResponseNonce().isEmpty() && completeRequest.getResponseNonce().equals(resourceNonce)) {
+    if (!completeRequest.getResponseNonce().isEmpty()) {
+      if (!completeRequest.getResponseNonce().equals(resourceNonce)) {
+        // envoy is acking a previous version, we should wait for the latest response
+        return;
+      }
+
       // envoy is acking o nacking previous response
       if (!completeRequest.hasErrorDetail()) {
-        // envoy has acked resources
+        // update tracked resources only if envoy has acked
         updateTrackedResources(requestTypeUrl,
             latestDiscoveryResponse.resourceVersions(),
             request.getResourceNamesSubscribeList(),
@@ -111,32 +124,36 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
       }
     } else {
       // envoy is requesting new resources
-      if (latestDiscoveryResponse == null) {
-        // first request
-        updateTrackedResources(requestTypeUrl,
-            request.getInitialResourceVersionsMap(),
-            request.getResourceNamesSubscribeList(),
-            Collections.emptyList(),
-            request.getResourceNamesUnsubscribeList());
-      } else {
-        updateTrackedResources(requestTypeUrl,
-            Collections.emptyMap(),
-            request.getResourceNamesSubscribeList(),
-            Collections.emptyList(),
-            request.getResourceNamesUnsubscribeList());
-      }
+      // initialResourceVersionsMap return empty map if not first request
+      updateTrackedResources(requestTypeUrl,
+          request.getInitialResourceVersionsMap(),
+          request.getResourceNamesSubscribeList(),
+          Collections.emptyList(),
+          request.getResourceNamesUnsubscribeList());
     }
 
-    computeWatch(requestTypeUrl, () -> discoverySever.configWatcher.createDeltaWatch(
-        completeRequest,
-        version,
-        resourceVersions(requestTypeUrl),
-        pendingResources(requestTypeUrl),
-        isWildcard(requestTypeUrl),
-        r -> executor.execute(() -> send(r, requestTypeUrl)),
-        hasClusterChanged
-    ));
+    // schedule a watch creation to allow merging subsequent resource requests
+    executor.execute(() -> {
+      ScheduledFuture<?> handle = handle(requestTypeUrl);
+      if (handle != null) {
+        handle.cancel(false);
+      }
+      setHandle(requestTypeUrl, executor.schedule(() ->
+          computeWatch(requestTypeUrl, () -> discoverySever.configWatcher.createDeltaWatch(
+              completeRequest,
+              version,
+              resourceVersions(requestTypeUrl),
+              pendingResources(requestTypeUrl),
+              isWildcard(requestTypeUrl),
+              r -> executor.execute(() -> send(r, requestTypeUrl)),
+              hasClusterChanged
+          )), 20, TimeUnit.MILLISECONDS));
+    });
   }
+
+  abstract ScheduledFuture<?> handle(String typeUrl);
+
+  abstract void setHandle(String typeUrl, ScheduledFuture<?> handle);
 
   @Override
   public void onError(Throwable t) {
@@ -219,7 +236,7 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
             response.resources()
                 .entrySet()
                 .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().version())),
+                .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, entry -> entry.getValue().version())),
             response.removedResources()
         )
     );

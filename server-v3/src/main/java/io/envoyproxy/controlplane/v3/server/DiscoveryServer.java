@@ -20,6 +20,7 @@ import io.grpc.stub.StreamObserver;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -237,7 +238,7 @@ public class DiscoveryServer {
       String defaultTypeUrl) {
 
     long streamId = streamCount.getAndIncrement();
-    Executor executor = executorGroup.next();
+    ScheduledExecutorService executor = executorGroup.nextScheduled();
 
     LOGGER.debug("[{}] open stream from {}", streamId, defaultTypeUrl);
 

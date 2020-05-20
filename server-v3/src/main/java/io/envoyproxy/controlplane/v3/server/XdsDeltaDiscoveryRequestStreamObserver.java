@@ -10,7 +10,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.function.Supplier;
 
 /**
@@ -24,11 +25,12 @@ public class XdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   private final boolean isWildcard;
   private volatile DeltaWatch watch;
   private volatile LatestDeltaDiscoveryResponse latestDiscoveryResponse;
+  private ScheduledFuture<?> handle;
 
   XdsDeltaDiscoveryRequestStreamObserver(String defaultTypeUrl,
                                          StreamObserver<DeltaDiscoveryResponse> responseObserver,
                                          long streamId,
-                                         Executor executor,
+                                         ScheduledExecutorService executor,
                                          DiscoveryServer discoveryServer) {
     super(defaultTypeUrl, responseObserver, streamId, executor, discoveryServer);
     this.trackedResources = new HashMap<>();
@@ -40,6 +42,16 @@ public class XdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   @Override
   public void onNext(DeltaDiscoveryRequest request) {
     super.onNext(request);
+  }
+
+  @Override
+  ScheduledFuture<?> handle(String typeUrl) {
+    return handle;
+  }
+
+  @Override
+  void setHandle(String typeUrl, ScheduledFuture<?> handle) {
+    this.handle = handle;
   }
 
   @Override

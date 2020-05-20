@@ -16,7 +16,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.function.Supplier;
 
 /**
@@ -28,16 +29,18 @@ public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   private final ConcurrentMap<String, LatestDeltaDiscoveryResponse> latestResponse;
   private final ConcurrentMap<String, Map<String, String>> trackedResourceMap;
   private final ConcurrentMap<String, Set<String>> pendingResourceMap;
+  private final ConcurrentMap<String, ScheduledFuture<?>> handleMap;
 
   AdsDeltaDiscoveryRequestStreamObserver(StreamObserver<DeltaDiscoveryResponse> responseObserver,
                                          long streamId,
-                                         Executor executor,
+                                         ScheduledExecutorService executor,
                                          DiscoveryServer discoveryServer) {
     super(ANY_TYPE_URL, responseObserver, streamId, executor, discoveryServer);
     this.watches = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
     this.latestResponse = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
     this.trackedResourceMap = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
     this.pendingResourceMap = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
+    this.handleMap = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
   }
 
   @Override
@@ -52,6 +55,16 @@ public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
     }
 
     super.onNext(request);
+  }
+
+  @Override
+  ScheduledFuture<?> handle(String typeUrl) {
+    return handleMap.get(typeUrl);
+  }
+
+  @Override
+  void setHandle(String typeUrl, ScheduledFuture<?> handle) {
+    handleMap.put(typeUrl, handle);
   }
 
   @Override
