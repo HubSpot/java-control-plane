@@ -1,6 +1,7 @@
 package io.envoyproxy.controlplane.v3.cache;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
+import static io.envoyproxy.envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager.RouteSpecifierCase.RDS;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -10,6 +11,7 @@ import com.google.protobuf.Any;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import io.envoyproxy.envoy.config.cluster.v3.Cluster;
+import io.envoyproxy.envoy.config.cluster.v3.Cluster.DiscoveryType;
 import io.envoyproxy.envoy.config.endpoint.v3.ClusterLoadAssignment;
 import io.envoyproxy.envoy.config.listener.v3.Filter;
 import io.envoyproxy.envoy.config.listener.v3.FilterChain;
@@ -130,7 +132,7 @@ public class Resources {
         Cluster c = (Cluster) r;
 
         // For EDS clusters, use the cluster name or the service name override.
-        if (c.getType() == Cluster.DiscoveryType.EDS) {
+        if (c.getType() == DiscoveryType.EDS) {
           if (!isNullOrEmpty(c.getEdsClusterConfig().getServiceName())) {
             refs.add(c.getEdsClusterConfig().getServiceName());
           } else {
@@ -150,8 +152,7 @@ public class Resources {
             try {
               HttpConnectionManager config = filter.getTypedConfig().unpack(HttpConnectionManager.class);
 
-              if (config.getRouteSpecifierCase() == HttpConnectionManager.RouteSpecifierCase.RDS
-                  && !isNullOrEmpty(config.getRds().getRouteConfigName())) {
+              if (config.getRouteSpecifierCase() == RDS && !isNullOrEmpty(config.getRds().getRouteConfigName())) {
                 refs.add(config.getRds().getRouteConfigName());
               }
             } catch (InvalidProtocolBufferException e) {

@@ -7,7 +7,6 @@ import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.containsString;
 
 import io.envoyproxy.controlplane.v3.cache.SimpleCache;
-import io.envoyproxy.controlplane.v3.cache.Snapshot;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryRequest;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryResponse;
 import io.grpc.netty.NettyServerBuilder;
@@ -51,17 +50,16 @@ public class DiscoveryServerXdsIT {
         }
       };
 
-      Snapshot snapshot = createSnapshotNoEds(false,
-          "upstream",
-          "upstream",
-          EchoContainer.PORT,
-          "listener0",
-          LISTENER_PORT,
-          "route0",
-          "1");
       cache.setSnapshot(
           GROUP,
-          snapshot
+          createSnapshotNoEds(false,
+              "upstream",
+              "upstream",
+              EchoContainer.PORT,
+              "listener0",
+              LISTENER_PORT,
+              "route0",
+              "1")
       );
 
       DiscoveryServer server = new DiscoveryServer(callbacks, cache);

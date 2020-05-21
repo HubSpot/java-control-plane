@@ -1,5 +1,13 @@
 package io.envoyproxy.controlplane.v3.cache;
 
+import static io.envoyproxy.controlplane.v3.cache.Resources.CLUSTER_TYPE_URL;
+import static io.envoyproxy.controlplane.v3.cache.Resources.ENDPOINT_TYPE_URL;
+import static io.envoyproxy.controlplane.v3.cache.Resources.LISTENER_TYPE_URL;
+import static io.envoyproxy.controlplane.v3.cache.Resources.ROUTE_TYPE_URL;
+import static io.envoyproxy.controlplane.v3.cache.Resources.SCOPED_ROUTE_TYPE_URL;
+import static io.envoyproxy.controlplane.v3.cache.Resources.SECRET_TYPE_URL;
+import static io.envoyproxy.controlplane.v3.cache.Resources.VIRTUAL_HOST_TYPE_URL;
+
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
@@ -94,16 +102,16 @@ public abstract class Snapshot {
   /**
    * Returns a new {@link Snapshot} instance that has separate versions for each resource type.
    *
-   * @param clusters the cluster resources in this snapshot
-   * @param clusterVersionResolver version resolver of the clusters in this snapshot
-   * @param endpoints the endpoint resources in this snapshot
+   * @param clusters                the cluster resources in this snapshot
+   * @param clusterVersionResolver  version resolver of the clusters in this snapshot
+   * @param endpoints               the endpoint resources in this snapshot
    * @param endpointVersionResolver version resolver of the endpoints in this snapshot
-   * @param listeners the listener resources in this snapshot
+   * @param listeners               the listener resources in this snapshot
    * @param listenerVersionResolver version resolver of listeners in this snapshot
-   * @param routes the route resources in this snapshot
-   * @param routeVersionResolver version resolver of the routes in this snapshot
-   * @param secrets the secret resources in this snapshot
-   * @param secretVersionResolver version resolver of the secrets in this snapshot
+   * @param routes                  the route resources in this snapshot
+   * @param routeVersionResolver    version resolver of the routes in this snapshot
+   * @param secrets                 the secret resources in this snapshot
+   * @param secretVersionResolver   version resolver of the secrets in this snapshot
    */
   public static Snapshot create(
       Iterable<SnapshotResource<Cluster>> clusters,
@@ -232,27 +240,15 @@ public abstract class Snapshot {
   public void ensureConsistent() throws SnapshotConsistencyException {
     Set<String> clusterEndpointRefs = Resources.getResourceReferences(clusters().resources().values());
 
-    ensureAllResourceNamesExist(
-        Resources.CLUSTER_TYPE_URL,
-        Resources.ENDPOINT_TYPE_URL,
-        clusterEndpointRefs,
-        endpoints().resources());
+    ensureAllResourceNamesExist(CLUSTER_TYPE_URL, ENDPOINT_TYPE_URL, clusterEndpointRefs, endpoints().resources());
 
     Set<String> listenerRouteRefs = Resources.getResourceReferences(listeners().resources().values());
 
-    ensureAllResourceNamesExist(
-        Resources.LISTENER_TYPE_URL,
-        Resources.ROUTE_TYPE_URL,
-        listenerRouteRefs,
-        routes().resources());
+    ensureAllResourceNamesExist(LISTENER_TYPE_URL, ROUTE_TYPE_URL, listenerRouteRefs, routes().resources());
 
     Set<String> scopedRoutesRefs = Resources.getResourceReferences(scopedRoutes().resources().values());
 
-    ensureAllResourceNamesExist(
-        Resources.SCOPED_ROUTE_TYPE_URL,
-        Resources.ROUTE_TYPE_URL,
-        scopedRoutesRefs,
-        routes().resources());
+    ensureAllResourceNamesExist(SCOPED_ROUTE_TYPE_URL, ROUTE_TYPE_URL, scopedRoutesRefs, routes().resources());
   }
 
   /**
@@ -266,19 +262,19 @@ public abstract class Snapshot {
     }
 
     switch (typeUrl) {
-      case Resources.CLUSTER_TYPE_URL:
+      case CLUSTER_TYPE_URL:
         return (Map) clusters().resources();
-      case Resources.ENDPOINT_TYPE_URL:
+      case ENDPOINT_TYPE_URL:
         return (Map) endpoints().resources();
-      case Resources.LISTENER_TYPE_URL:
+      case LISTENER_TYPE_URL:
         return (Map) listeners().resources();
-      case Resources.SCOPED_ROUTE_TYPE_URL:
+      case SCOPED_ROUTE_TYPE_URL:
         return (Map) scopedRoutes().resources();
-      case Resources.ROUTE_TYPE_URL:
+      case ROUTE_TYPE_URL:
         return (Map) routes().resources();
-      case Resources.VIRTUAL_HOST_TYPE_URL:
+      case VIRTUAL_HOST_TYPE_URL:
         return (Map) virtualHosts().resources();
-      case Resources.SECRET_TYPE_URL:
+      case SECRET_TYPE_URL:
         return (Map) secrets().resources();
       default:
         return ImmutableMap.of();
@@ -302,11 +298,11 @@ public abstract class Snapshot {
         return endpoints().version();
       case Resources.LISTENER_TYPE_URL:
         return listeners().version();
-      case Resources.SCOPED_ROUTE_TYPE_URL:
+      case SCOPED_ROUTE_TYPE_URL:
         return scopedRoutes().version();
       case Resources.ROUTE_TYPE_URL:
         return routes().version();
-      case Resources.VIRTUAL_HOST_TYPE_URL:
+      case VIRTUAL_HOST_TYPE_URL:
         return virtualHosts().version();
       case Resources.SECRET_TYPE_URL:
         return secrets().version();
@@ -326,19 +322,19 @@ public abstract class Snapshot {
     }
 
     switch (typeUrl) {
-      case Resources.CLUSTER_TYPE_URL:
+      case CLUSTER_TYPE_URL:
         return clusters().version(resourceNames);
-      case Resources.ENDPOINT_TYPE_URL:
+      case ENDPOINT_TYPE_URL:
         return endpoints().version(resourceNames);
-      case Resources.LISTENER_TYPE_URL:
+      case LISTENER_TYPE_URL:
         return listeners().version(resourceNames);
-      case Resources.SCOPED_ROUTE_TYPE_URL:
+      case SCOPED_ROUTE_TYPE_URL:
         return scopedRoutes().version(resourceNames);
-      case Resources.ROUTE_TYPE_URL:
+      case ROUTE_TYPE_URL:
         return routes().version(resourceNames);
-      case Resources.VIRTUAL_HOST_TYPE_URL:
+      case VIRTUAL_HOST_TYPE_URL:
         return virtualHosts().version(resourceNames);
-      case Resources.SECRET_TYPE_URL:
+      case SECRET_TYPE_URL:
         return secrets().version(resourceNames);
       default:
         return "";
