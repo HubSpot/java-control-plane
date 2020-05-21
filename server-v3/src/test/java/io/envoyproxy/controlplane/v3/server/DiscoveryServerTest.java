@@ -1021,10 +1021,13 @@ public class DiscoveryServerTest {
 
     @Override
     public DeltaWatch createDeltaWatch(DeltaDiscoveryRequest request,
-                                       String currentVersion, Map<String, String> trackedResources,
+                                       String currentVersion,
+                                       Map<String, String> resourceVersions,
+                                       Set<String> pendingResources,
                                        boolean isWildcard,
                                        Consumer<DeltaResponse> responseConsumer,
                                        boolean hasClusterChanged) {
+
       return null;
     }
   }

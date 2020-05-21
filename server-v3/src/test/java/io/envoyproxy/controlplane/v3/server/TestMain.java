@@ -59,6 +59,8 @@ public class TestMain {
             ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of(),
+            ImmutableList.of(),
+            ImmutableList.of(),
             "1"));
 
     DiscoveryServer discoveryServer = new DiscoveryServer(cache);
@@ -105,6 +107,8 @@ public class TestMain {
                             .build())
                         .build(),
                     "1")),
+            ImmutableList.of(),
+            ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of(),
             ImmutableList.of(),

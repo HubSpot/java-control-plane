@@ -39,7 +39,9 @@ public class SimpleCacheTest {
       ImmutableList.of(SnapshotResource.create(Cluster.newBuilder().setName(CLUSTER_NAME).build(), "1")),
       ImmutableList.of(SnapshotResource.create(ClusterLoadAssignment.getDefaultInstance(), "1")),
       ImmutableList.of(SnapshotResource.create(Listener.newBuilder().setName(LISTENER_NAME).build(), "1")),
+      ImmutableList.of(),
       ImmutableList.of(SnapshotResource.create(RouteConfiguration.newBuilder().setName(ROUTE_NAME).build(), "1")),
+      ImmutableList.of(),
       ImmutableList.of(SnapshotResource.create(Secret.newBuilder().setName(ROUTE_NAME).build(), "1")),
       VERSION1);
 
@@ -47,7 +49,9 @@ public class SimpleCacheTest {
       ImmutableList.of(SnapshotResource.create(Cluster.newBuilder().setName(CLUSTER_NAME).build(), "1")),
       ImmutableList.of(SnapshotResource.create(ClusterLoadAssignment.getDefaultInstance(), "1")),
       ImmutableList.of(SnapshotResource.create(Listener.newBuilder().setName(LISTENER_NAME).build(), "1")),
+      ImmutableList.of(),
       ImmutableList.of(SnapshotResource.create(RouteConfiguration.newBuilder().setName(ROUTE_NAME).build(), "1")),
+      ImmutableList.of(),
       ImmutableList.of(SnapshotResource.create(Secret.newBuilder().setName(ROUTE_NAME).build(), "1")),
       VERSION2);
 
@@ -61,9 +65,11 @@ public class SimpleCacheTest {
               "1")
       ),
       ImmutableList.of(SnapshotResource.create(Listener.newBuilder().setName(LISTENER_NAME).build(), "1")),
+      ImmutableList.of(),
       ImmutableList.of(SnapshotResource.create(
           RouteConfiguration.newBuilder().setName(ROUTE_NAME).build(),
           "1")),
+      ImmutableList.of(),
       ImmutableList.of(SnapshotResource.create(Secret.newBuilder().setName(ROUTE_NAME).build(), "1")),
       VERSION2);
 
@@ -423,7 +429,14 @@ public class SimpleCacheTest {
   public void watchIsLeftOpenIfNotRespondedImmediately() {
     SimpleCache<String> cache = new SimpleCache<>(new SingleNodeGroup());
     cache.setSnapshot(SingleNodeGroup.GROUP, Snapshot.create(
-        ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), VERSION1));
+        ImmutableList.of(),
+        ImmutableList.of(),
+        ImmutableList.of(),
+        ImmutableList.of(),
+        ImmutableList.of(),
+        ImmutableList.of(),
+        ImmutableList.of(),
+        VERSION1));
 
     ResponseTracker responseTracker = new ResponseTracker();
     Watch watch = cache.createWatch(

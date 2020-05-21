@@ -84,11 +84,11 @@ public class ResourcesTest {
     Map<Collection<SnapshotResource<Message>>, Set<String>> cases =
         ImmutableMap.<Collection<SnapshotResource<Message>>, Set<String>>builder()
             .put((Collection) ImmutableList.of(CLUSTER), ImmutableSet.of(CLUSTER_NAME))
-            .put(ImmutableList.of(clusterWithServiceName), ImmutableSet.of(clusterServiceName))
-            .put(ImmutableList.of(ENDPOINT), ImmutableSet.of())
-            .put(ImmutableList.of(LISTENER), ImmutableSet.of(ROUTE_NAME))
-            .put(ImmutableList.of(ROUTE), ImmutableSet.of())
-            .put(ImmutableList.of(CLUSTER, ENDPOINT, LISTENER, ROUTE), ImmutableSet.of(CLUSTER_NAME, ROUTE_NAME))
+            .put((Collection) ImmutableList.of(clusterWithServiceName), ImmutableSet.of(clusterServiceName))
+            .put((Collection) ImmutableList.of(ENDPOINT), ImmutableSet.of())
+            .put((Collection) ImmutableList.of(LISTENER), ImmutableSet.of(ROUTE_NAME))
+            .put((Collection) ImmutableList.of(ROUTE), ImmutableSet.of())
+            .put((Collection) ImmutableList.of(CLUSTER, ENDPOINT, LISTENER, ROUTE), ImmutableSet.of(CLUSTER_NAME, ROUTE_NAME))
             .build();
 
     cases.forEach((resources, refs) ->

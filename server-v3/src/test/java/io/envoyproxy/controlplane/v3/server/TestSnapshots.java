@@ -30,7 +30,9 @@ class TestSnapshots {
         ImmutableList.of(SnapshotResource.create(cluster, version)),
         ImmutableList.of(SnapshotResource.create(endpoint, version)),
         ImmutableList.of(SnapshotResource.create(listener, version)),
+        ImmutableList.of(),
         ImmutableList.of(SnapshotResource.create(route, version)),
+        ImmutableList.of(),
         ImmutableList.of(),
         version);
   }
@@ -53,7 +55,9 @@ class TestSnapshots {
         ImmutableList.of(SnapshotResource.create(cluster, version)),
         ImmutableList.of(),
         ImmutableList.of(SnapshotResource.create(listener, version)),
+        ImmutableList.of(),
         ImmutableList.of(SnapshotResource.create(route, version)),
+        ImmutableList.of(),
         ImmutableList.of(),
         version);
   }
