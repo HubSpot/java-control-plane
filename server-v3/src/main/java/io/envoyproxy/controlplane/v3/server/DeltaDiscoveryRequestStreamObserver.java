@@ -10,7 +10,6 @@ import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryResponse;
 import io.envoyproxy.envoy.service.discovery.v3.Resource;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.SynchronizationContext;
 import io.grpc.stub.StreamObserver;
 import java.util.Collections;
 import java.util.List;
@@ -38,7 +37,6 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
   private final StreamObserver<DeltaDiscoveryResponse> responseObserver;
   private final ScheduledExecutorService executor;
   private final DiscoveryServer discoverySever;
-  private final SynchronizationContext synchronizationContext;
   volatile boolean hasClusterChanged;
   private volatile long streamNonce;
   private volatile boolean isClosing;
@@ -56,9 +54,6 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
     this.streamNonce = 0;
     this.discoverySever = discoveryServer;
     this.hasClusterChanged = false;
-    this.synchronizationContext = new SynchronizationContext((t, e) -> {
-      LOGGER.error("Uncaught exception in thread {}", t, e);
-    });
   }
 
   @Override
