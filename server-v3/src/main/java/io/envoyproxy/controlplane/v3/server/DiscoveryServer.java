@@ -14,6 +14,8 @@ import io.envoyproxy.envoy.service.discovery.v3.DiscoveryResponse;
 import io.envoyproxy.envoy.service.endpoint.v3.EndpointDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.service.listener.v3.ListenerDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.service.route.v3.RouteDiscoveryServiceGrpc;
+import io.envoyproxy.envoy.service.route.v3.ScopedRoutesDiscoveryServiceGrpc;
+import io.envoyproxy.envoy.service.route.v3.VirtualHostDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.service.secret.v3.SecretDiscoveryServiceGrpc;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
@@ -157,6 +159,25 @@ public class DiscoveryServer {
   }
 
   /**
+   * Returns a SRDS implementation that uses this server's {@link ConfigWatcher}.
+   */
+  public ScopedRoutesDiscoveryServiceGrpc.ScopedRoutesDiscoveryServiceImplBase getScopedRoutesDiscoveryServiceImpl() {
+    return new ScopedRoutesDiscoveryServiceGrpc.ScopedRoutesDiscoveryServiceImplBase() {
+      @Override
+      public StreamObserver<DiscoveryRequest> streamScopedRoutes(StreamObserver<DiscoveryResponse> responseObserver) {
+        return createRequestHandler(responseObserver, false, Resources.SCOPED_ROUTE_TYPE_URL);
+      }
+
+      @Override
+      public StreamObserver<DeltaDiscoveryRequest> deltaScopedRoutes(
+          StreamObserver<DeltaDiscoveryResponse> responseObserver) {
+
+        return createDeltaRequestHandler(responseObserver, false, Resources.SCOPED_ROUTE_TYPE_URL);
+      }
+    };
+  }
+
+  /**
    * Returns a RDS implementation that uses this server's {@link ConfigWatcher}.
    */
   public RouteDiscoveryServiceGrpc.RouteDiscoveryServiceImplBase getRouteDiscoveryServiceImpl() {
@@ -172,6 +193,20 @@ public class DiscoveryServer {
       public StreamObserver<DeltaDiscoveryRequest> deltaRoutes(
           StreamObserver<DeltaDiscoveryResponse> responseObserver) {
         return createDeltaRequestHandler(responseObserver, false, Resources.ROUTE_TYPE_URL);
+      }
+    };
+  }
+
+  /**
+   * Returns a VHDS implementation that uses this server's {@link ConfigWatcher}.
+   */
+  public VirtualHostDiscoveryServiceGrpc.VirtualHostDiscoveryServiceImplBase getVirtualHostDiscoveryServiceImpl() {
+    return new VirtualHostDiscoveryServiceGrpc.VirtualHostDiscoveryServiceImplBase() {
+      @Override
+      public StreamObserver<DeltaDiscoveryRequest> deltaVirtualHosts(
+          StreamObserver<DeltaDiscoveryResponse> responseObserver) {
+
+        return createDeltaRequestHandler(responseObserver, false, Resources.VIRTUAL_HOST_TYPE_URL);
       }
     };
   }

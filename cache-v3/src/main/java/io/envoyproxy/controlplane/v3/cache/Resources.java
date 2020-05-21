@@ -15,6 +15,8 @@ import io.envoyproxy.envoy.config.listener.v3.Filter;
 import io.envoyproxy.envoy.config.listener.v3.FilterChain;
 import io.envoyproxy.envoy.config.listener.v3.Listener;
 import io.envoyproxy.envoy.config.route.v3.RouteConfiguration;
+import io.envoyproxy.envoy.config.route.v3.ScopedRouteConfiguration;
+import io.envoyproxy.envoy.config.route.v3.VirtualHost;
 import io.envoyproxy.envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager;
 import io.envoyproxy.envoy.extensions.transport_sockets.tls.v3.Secret;
 import java.util.Collection;
@@ -26,27 +28,35 @@ import org.slf4j.LoggerFactory;
 
 public class Resources {
 
-  static final String FILTER_ENVOY_ROUTER = "envoy.router";
-  static final String FILTER_HTTP_CONNECTION_MANAGER = "envoy.http_connection_manager";
-  private static final Logger LOGGER = LoggerFactory.getLogger(Resources.class);
   public static final String CLUSTER_TYPE_URL = "type.googleapis.com/envoy.config.cluster.v3.Cluster";
   public static final String ENDPOINT_TYPE_URL = "type.googleapis.com/envoy.config.endpoint.v3.ClusterLoadAssignment";
   public static final String LISTENER_TYPE_URL = "type.googleapis.com/envoy.config.listener.v3.Listener";
   public static final String ROUTE_TYPE_URL = "type.googleapis.com/envoy.config.route.v3.RouteConfiguration";
   public static final String SECRET_TYPE_URL = "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret";
+  public static final String VIRTUAL_HOST_TYPE_URL = "type.googleapis.com/envoy.config.route.v3.VirtualHost";
+  public static final String SCOPED_ROUTE_TYPE_URL =
+      "type.googleapis.com/envoy.config.route.v3.ScopedRouteConfiguration";
   public static final List<String> TYPE_URLS = ImmutableList.of(
       CLUSTER_TYPE_URL,
       ENDPOINT_TYPE_URL,
       LISTENER_TYPE_URL,
+      SCOPED_ROUTE_TYPE_URL,
       ROUTE_TYPE_URL,
+      VIRTUAL_HOST_TYPE_URL,
       SECRET_TYPE_URL);
-  public static final Map<String, Class<? extends Message>> RESOURCE_TYPE_BY_URL = ImmutableMap.of(
-      CLUSTER_TYPE_URL, Cluster.class,
-      ENDPOINT_TYPE_URL, ClusterLoadAssignment.class,
-      LISTENER_TYPE_URL, Listener.class,
-      ROUTE_TYPE_URL, RouteConfiguration.class,
-      SECRET_TYPE_URL, Secret.class
-  );
+  public static final Map<String, Class<? extends Message>> RESOURCE_TYPE_BY_URL =
+      ImmutableMap.<String, Class<? extends Message>>builder()
+          .put(CLUSTER_TYPE_URL, Cluster.class)
+          .put(ENDPOINT_TYPE_URL, ClusterLoadAssignment.class)
+          .put(LISTENER_TYPE_URL, Listener.class)
+          .put(SCOPED_ROUTE_TYPE_URL, ScopedRouteConfiguration.class)
+          .put(ROUTE_TYPE_URL, RouteConfiguration.class)
+          .put(VIRTUAL_HOST_TYPE_URL, VirtualHost.class)
+          .put(SECRET_TYPE_URL, Secret.class)
+          .build();
+  static final String FILTER_ENVOY_ROUTER = "envoy.router";
+  static final String FILTER_HTTP_CONNECTION_MANAGER = "envoy.http_connection_manager";
+  private static final Logger LOGGER = LoggerFactory.getLogger(Resources.class);
 
   private Resources() {
   }
@@ -152,6 +162,9 @@ public class Resources {
             }
           }
         }
+      } else if (r instanceof ScopedRouteConfiguration) {
+        ScopedRouteConfiguration src = (ScopedRouteConfiguration) r;
+        refs.add(src.getRouteConfigurationName());
       }
     }
 
