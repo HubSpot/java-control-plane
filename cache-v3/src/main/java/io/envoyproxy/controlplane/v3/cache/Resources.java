@@ -89,6 +89,14 @@ public class Resources {
       return ((Secret) resource).getName();
     }
 
+    if (resource instanceof ScopedRouteConfiguration) {
+      return ((ScopedRouteConfiguration) resource).getName();
+    }
+
+    if (resource instanceof VirtualHost) {
+      return ((VirtualHost) resource).getName();
+    }
+
     return "";
   }
 
