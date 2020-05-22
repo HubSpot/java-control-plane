@@ -287,34 +287,15 @@ public abstract class Snapshot {
    * @param typeUrl the URL for the requested resource type
    */
   public String version(String typeUrl) {
-    if (Strings.isNullOrEmpty(typeUrl)) {
-      return "";
-    }
-
-    switch (typeUrl) {
-      case Resources.CLUSTER_TYPE_URL:
-        return clusters().version();
-      case Resources.ENDPOINT_TYPE_URL:
-        return endpoints().version();
-      case Resources.LISTENER_TYPE_URL:
-        return listeners().version();
-      case SCOPED_ROUTE_TYPE_URL:
-        return scopedRoutes().version();
-      case Resources.ROUTE_TYPE_URL:
-        return routes().version();
-      case VIRTUAL_HOST_TYPE_URL:
-        return virtualHosts().version();
-      case Resources.SECRET_TYPE_URL:
-        return secrets().version();
-      default:
-        return "";
-    }
+    return version(typeUrl, Collections.emptyList());
   }
 
   /**
    * Returns the version in this snapshot for the given resource type.
    *
    * @param typeUrl the URL for the requested resource type
+   * @param resourceNames list of requested resource names,
+   *                      used to calculate a version for the given resources
    */
   public String version(String typeUrl, List<String> resourceNames) {
     if (Strings.isNullOrEmpty(typeUrl)) {
