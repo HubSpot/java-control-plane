@@ -105,7 +105,8 @@ public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   @Override
   boolean isWildcard(String typeUrl) {
     return typeUrl.equals(Resources.CLUSTER_TYPE_URL)
-        || typeUrl.equals(Resources.LISTENER_TYPE_URL);
+        || typeUrl.equals(Resources.LISTENER_TYPE_URL)
+        || typeUrl.equals(Resources.SCOPED_ROUTE_TYPE_URL);
   }
 
   @Override

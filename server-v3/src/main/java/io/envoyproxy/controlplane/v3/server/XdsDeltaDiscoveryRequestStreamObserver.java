@@ -36,7 +36,8 @@ public class XdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
     this.trackedResources = new HashMap<>();
     this.pendingResources = new HashSet<>();
     this.isWildcard = defaultTypeUrl.equals(Resources.CLUSTER_TYPE_URL)
-        || defaultTypeUrl.equals(Resources.LISTENER_TYPE_URL);
+        || defaultTypeUrl.equals(Resources.LISTENER_TYPE_URL)
+        || defaultTypeUrl.equals(Resources.SCOPED_ROUTE_TYPE_URL);
   }
 
   @Override
