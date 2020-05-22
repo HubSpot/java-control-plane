@@ -405,7 +405,9 @@ public class SimpleCache<T> implements SnapshotCache<T> {
       });
 
 
-      Map<String, SnapshotResource<?>> previousResources = previousSnapshot.resources(typeUrl);
+      Map<String, SnapshotResource<?>> previousResources = previousSnapshot == null
+          ? Collections.emptyMap()
+          : previousSnapshot.resources(typeUrl);
       Map<String, SnapshotResource<?>> snapshotResources = snapshot.resources(typeUrl);
 
       Map<String, SnapshotResource<?>> snapshotChangedResources = snapshotResources.entrySet()
