@@ -168,9 +168,10 @@ public abstract class Snapshot {
       String parentTypeUrl,
       String dependencyTypeUrl,
       Set<String> resourceNames,
-      Map<String, SnapshotResource<T>> resources) throws SnapshotConsistencyException {
+      Map<String, SnapshotResource<T>> resources,
+      boolean sizeCheck) throws SnapshotConsistencyException {
 
-    if (resourceNames.size() != resources.size()) {
+    if (sizeCheck && resourceNames.size() != resources.size()) {
       throw new SnapshotConsistencyException(
           String.format(
               "Mismatched %s -> %s reference and resource lengths, [%s] != %d",
@@ -240,15 +241,18 @@ public abstract class Snapshot {
   public void ensureConsistent() throws SnapshotConsistencyException {
     Set<String> clusterEndpointRefs = Resources.getResourceReferences(clusters().resources().values());
 
-    ensureAllResourceNamesExist(CLUSTER_TYPE_URL, ENDPOINT_TYPE_URL, clusterEndpointRefs, endpoints().resources());
+    ensureAllResourceNamesExist(CLUSTER_TYPE_URL, ENDPOINT_TYPE_URL,
+        clusterEndpointRefs, endpoints().resources(), true);
 
     Set<String> listenerRouteRefs = Resources.getResourceReferences(listeners().resources().values());
 
-    ensureAllResourceNamesExist(LISTENER_TYPE_URL, ROUTE_TYPE_URL, listenerRouteRefs, routes().resources());
+    ensureAllResourceNamesExist(LISTENER_TYPE_URL, ROUTE_TYPE_URL,
+        listenerRouteRefs, routes().resources(), true);
 
     Set<String> scopedRoutesRefs = Resources.getResourceReferences(scopedRoutes().resources().values());
 
-    ensureAllResourceNamesExist(SCOPED_ROUTE_TYPE_URL, ROUTE_TYPE_URL, scopedRoutesRefs, routes().resources());
+    ensureAllResourceNamesExist(SCOPED_ROUTE_TYPE_URL, ROUTE_TYPE_URL,
+        scopedRoutesRefs, routes().resources(), false);
   }
 
   /**

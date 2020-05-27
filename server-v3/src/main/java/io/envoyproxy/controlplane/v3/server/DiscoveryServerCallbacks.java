@@ -1,7 +1,6 @@
 package io.envoyproxy.controlplane.v3.server;
 
 import io.envoyproxy.controlplane.v3.server.exception.RequestException;
-import io.envoyproxy.envoy.config.core.v3.Node;
 import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryRequest;
 import io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryResponse;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryRequest;
@@ -18,7 +17,7 @@ public interface DiscoveryServerCallbacks {
    * instance.
    *
    * @param streamId an ID for this stream that is only unique to this discovery server instance
-   * @param typeUrl the resource type of the stream, or {@link DiscoveryServer#ANY_TYPE_URL} for ADS
+   * @param typeUrl  the resource type of the stream, or {@link DiscoveryServer#ANY_TYPE_URL} for ADS
    */
   default void onStreamClose(long streamId, String typeUrl) {
 
@@ -29,8 +28,8 @@ public interface DiscoveryServerCallbacks {
    * due to some error that has occurred.
    *
    * @param streamId an ID for this stream that is only unique to this discovery server instance
-   * @param typeUrl the resource type of the stream, or {@link DiscoveryServer#ANY_TYPE_URL} for ADS
-   * @param error the error that caused the stream to close
+   * @param typeUrl  the resource type of the stream, or {@link DiscoveryServer#ANY_TYPE_URL} for ADS
+   * @param error    the error that caused the stream to close
    */
   default void onStreamCloseWithError(long streamId, String typeUrl, Throwable error) {
 
@@ -41,7 +40,7 @@ public interface DiscoveryServerCallbacks {
    * initial {@link DiscoveryRequest} is processed.
    *
    * @param streamId an ID for this stream that is only unique to this discovery server instance
-   * @param typeUrl the resource type of the stream, or {@link DiscoveryServer#ANY_TYPE_URL} for ADS
+   * @param typeUrl  the resource type of the stream, or {@link DiscoveryServer#ANY_TYPE_URL} for ADS
    */
   default void onStreamOpen(long streamId, String typeUrl) {
 
@@ -51,10 +50,9 @@ public interface DiscoveryServerCallbacks {
    * {@code onStreamRequest} is called for each {@link DiscoveryRequest} that is received on the stream.
    *
    * @param streamId an ID for this stream that is only unique to this discovery server instance
-   * @param request the discovery request sent by the envoy instance
-   *
+   * @param request  the discovery request sent by the envoy instance
    * @throws RequestException optionally can throw {@link RequestException} with custom status. That status
-   *     will be returned to the client and the stream will be closed with error.
+   *                          will be returned to the client and the stream will be closed with error.
    */
   default void onStreamRequest(long streamId, DiscoveryRequest request) {
 
@@ -64,13 +62,11 @@ public interface DiscoveryServerCallbacks {
    * {@code onStreamDeltaRequest} is called for each {@link DeltaDiscoveryRequest} that is received on the stream.
    *
    * @param streamId an ID for this stream that is only unique to this discovery server instance
-   * @param node is the node which arrives at first {@link DeltaDiscoveryRequest}
-   * @param request the delta discovery request sent by the envoy instance
-   *
+   * @param request  the delta discovery request sent by the envoy instance
    * @throws RequestException optionally can throw {@link RequestException} with custom status. That status
-   *     will be returned to the client and the stream will be closed with error.
+   *                          will be returned to the client and the stream will be closed with error.
    */
-  default void onStreamDeltaRequest(long streamId, Node  node, DeltaDiscoveryRequest request) {
+  default void onStreamDeltaRequest(long streamId, DeltaDiscoveryRequest request) {
 
   }
 
@@ -78,7 +74,7 @@ public interface DiscoveryServerCallbacks {
    * {@code onStreamResponse} is called just before each {@link DiscoveryResponse} that is sent on the stream.
    *
    * @param streamId an ID for this stream that is only unique to this discovery server instance
-   * @param request the discovery request sent by the envoy instance
+   * @param request  the discovery request sent by the envoy instance
    * @param response the discovery response sent by the discovery server
    */
   default void onStreamResponse(long streamId, DiscoveryRequest request, DiscoveryResponse response) {
@@ -89,13 +85,11 @@ public interface DiscoveryServerCallbacks {
    * {@code onStreamResponse} is called just before each {@link DiscoveryResponse} that is sent on the stream.
    *
    * @param streamId an ID for this stream that is only unique to this discovery server instance
-   * @param node is the node which arrives at first {@link DeltaDiscoveryRequest}
-   * @param request the discovery request sent by the envoy instance
+   * @param request  the discovery request sent by the envoy instance
    * @param response the discovery response sent by the discovery server
    */
   default void onStreamDeltaResponse(
       long streamId,
-      Node node,
       DeltaDiscoveryRequest request,
       DeltaDiscoveryResponse response) {
 

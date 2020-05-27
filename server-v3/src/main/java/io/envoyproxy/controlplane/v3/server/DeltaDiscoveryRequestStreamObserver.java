@@ -85,7 +85,7 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
     }
 
     try {
-      discoverySever.callbacks.forEach(cb -> cb.onStreamDeltaRequest(streamId, node, completeRequest));
+      discoverySever.callbacks.forEach(cb -> cb.onStreamDeltaRequest(streamId, completeRequest));
     } catch (RequestException e) {
       closeWithError(e);
       return;
@@ -218,7 +218,7 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
     LOGGER.debug("[{}] response {} with nonce {} version {}", streamId, typeUrl, nonce, response.version());
 
     discoverySever.callbacks.forEach(cb ->
-        cb.onStreamDeltaResponse(streamId, node, response.request(), discoveryResponse));
+        cb.onStreamDeltaResponse(streamId, response.request(), discoveryResponse));
 
     // Store the latest response *before* we send the response. This ensures that by the time the request
     // is processed the map is guaranteed to be updated. Doing it afterwards leads to a race conditions
