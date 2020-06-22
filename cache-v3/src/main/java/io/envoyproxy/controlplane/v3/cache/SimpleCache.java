@@ -551,10 +551,11 @@ public class SimpleCache<T> implements SnapshotCache<T> {
             return true;
           }
           String resourceVersion = watch.trackedResources().get(entry.getKey());
-          if (resourceVersion != null && !entry.getValue().version().equals(resourceVersion)) {
-            return true;
+          if (resourceVersion == null) {
+            // resource is not tracked, should respond it only if watch is wildcard
+            return watch.isWildcard();
           }
-          return watch.isWildcard();
+          return !entry.getValue().version().equals(resourceVersion);
         })
         .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
 
