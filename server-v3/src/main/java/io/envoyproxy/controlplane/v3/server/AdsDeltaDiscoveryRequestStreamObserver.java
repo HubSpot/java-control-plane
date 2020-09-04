@@ -94,12 +94,6 @@ public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   }
 
   @Override
-  int responseCount(String typeUrl) {
-    return responses.computeIfAbsent(typeUrl, s -> new ConcurrentHashMap<>())
-        .size();
-  }
-
-  @Override
   Map<String, String> resourceVersions(String typeUrl) {
     return trackedResourceMap.getOrDefault(typeUrl, Collections.emptyMap());
   }

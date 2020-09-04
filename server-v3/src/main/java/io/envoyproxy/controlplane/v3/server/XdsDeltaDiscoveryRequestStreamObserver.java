@@ -80,11 +80,6 @@ public class XdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   }
 
   @Override
-  int responseCount(String typeUrl) {
-    return responses.size();
-  }
-
-  @Override
   Map<String, String> resourceVersions(String typeUrl) {
     return trackedResources;
   }
