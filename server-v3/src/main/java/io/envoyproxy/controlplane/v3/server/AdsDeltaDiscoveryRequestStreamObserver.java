@@ -17,7 +17,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.function.Supplier;
 
 /**
@@ -26,10 +25,10 @@ import java.util.function.Supplier;
  */
 public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryRequestStreamObserver {
   private final ConcurrentMap<String, DeltaWatch> watches;
-  private final ConcurrentMap<String, LatestDeltaDiscoveryResponse> latestResponse;
-  private final ConcurrentMap<String, Map<String, String>> trackedResourceMap;
-  private final ConcurrentMap<String, Set<String>> pendingResourceMap;
-  private final ConcurrentMap<String, ScheduledFuture<?>> handleMap;
+  private final ConcurrentMap<String, String> latestVersion;
+  private final ConcurrentMap<String, ConcurrentHashMap<String, LatestDeltaDiscoveryResponse>> responses;
+  private final Map<String, Map<String, String>> trackedResourceMap;
+  private final Map<String, Set<String>> pendingResourceMap;
 
   AdsDeltaDiscoveryRequestStreamObserver(StreamObserver<DeltaDiscoveryResponse> responseObserver,
                                          long streamId,
@@ -37,10 +36,10 @@ public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
                                          DiscoveryServer discoveryServer) {
     super(ANY_TYPE_URL, responseObserver, streamId, executor, discoveryServer);
     this.watches = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
-    this.latestResponse = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
-    this.trackedResourceMap = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
-    this.pendingResourceMap = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
-    this.handleMap = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
+    this.latestVersion = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
+    this.trackedResourceMap = new HashMap<>(Resources.TYPE_URLS.size());
+    this.pendingResourceMap = new HashMap<>(Resources.TYPE_URLS.size());
+    this.responses = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
   }
 
   @Override
@@ -58,16 +57,6 @@ public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   }
 
   @Override
-  ScheduledFuture<?> handle(String typeUrl) {
-    return handleMap.get(typeUrl);
-  }
-
-  @Override
-  void setHandle(String typeUrl, ScheduledFuture<?> handle) {
-    handleMap.put(typeUrl, handle);
-  }
-
-  @Override
   void cancel() {
     watches.values().forEach(DeltaWatch::cancel);
   }
@@ -78,18 +67,36 @@ public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   }
 
   @Override
-  LatestDeltaDiscoveryResponse latestResponse(String typeUrl) {
-    return latestResponse.get(typeUrl);
-  }
-
-  @Override
-  void setLatestResponse(String typeUrl, LatestDeltaDiscoveryResponse response) {
-    latestResponse.put(typeUrl, response);
+  void setLatestVersion(String typeUrl, String version) {
+    latestVersion.put(typeUrl, version);
     if (typeUrl.equals(Resources.CLUSTER_TYPE_URL)) {
       hasClusterChanged = true;
     } else if (typeUrl.equals(Resources.ENDPOINT_TYPE_URL)) {
       hasClusterChanged = false;
     }
+  }
+
+  @Override
+  String latestVersion(String typeUrl) {
+    return latestVersion.get(typeUrl);
+  }
+
+  @Override
+  void setResponse(String typeUrl, String nonce, LatestDeltaDiscoveryResponse response) {
+    responses.computeIfAbsent(typeUrl, s -> new ConcurrentHashMap<>())
+        .put(nonce, response);
+  }
+
+  @Override
+  LatestDeltaDiscoveryResponse clearResponse(String typeUrl, String nonce) {
+    return responses.computeIfAbsent(typeUrl, s -> new ConcurrentHashMap<>())
+        .remove(nonce);
+  }
+
+  @Override
+  int responseCount(String typeUrl) {
+    return responses.computeIfAbsent(typeUrl, s -> new ConcurrentHashMap<>())
+        .size();
   }
 
   @Override
@@ -112,9 +119,7 @@ public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   @Override
   void updateTrackedResources(String typeUrl,
                               Map<String, String> resourcesVersions,
-                              List<String> resourceNamesSubscribe,
-                              List<String> removedResources,
-                              List<String> resourceNamesUnsubscribe) {
+                              List<String> removedResources) {
 
     Map<String, String> trackedResources = trackedResourceMap.computeIfAbsent(typeUrl, s -> new HashMap<>());
     Set<String> pendingResources = pendingResourceMap.computeIfAbsent(typeUrl, s -> new HashSet<>());
@@ -122,8 +127,14 @@ public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
       trackedResources.put(k, v);
       pendingResources.remove(k);
     });
-    pendingResources.addAll(resourceNamesSubscribe);
     removedResources.forEach(trackedResources::remove);
+  }
+
+  @Override
+  void updateSubscriptions(String typeUrl, List<String> resourceNamesSubscribe, List<String> resourceNamesUnsubscribe) {
+    Map<String, String> trackedResources = trackedResourceMap.computeIfAbsent(typeUrl, s -> new HashMap<>());
+    Set<String> pendingResources = pendingResourceMap.computeIfAbsent(typeUrl, s -> new HashSet<>());
+    pendingResources.addAll(resourceNamesSubscribe);
     resourceNamesUnsubscribe.forEach(s -> {
       trackedResources.remove(s);
       pendingResources.remove(s);

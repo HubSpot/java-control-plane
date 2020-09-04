@@ -11,13 +11,10 @@ import io.envoyproxy.envoy.service.discovery.v3.Resource;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -91,64 +88,47 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
       return;
     }
 
-    LatestDeltaDiscoveryResponse latestDiscoveryResponse = latestResponse(requestTypeUrl);
-    String resourceNonce;
-    String version;
-    if (latestDiscoveryResponse == null) {
-      resourceNonce = null;
+    final String version;
+    if (latestVersion(requestTypeUrl) == null) {
       version = "";
     } else {
-      resourceNonce = latestDiscoveryResponse.nonce();
-      version = latestDiscoveryResponse.version();
+      version = latestVersion(requestTypeUrl);
     }
+
+    // always update subscriptions
+    updateSubscriptions(requestTypeUrl,
+        request.getResourceNamesSubscribeList(),
+        request.getResourceNamesUnsubscribeList());
 
     if (!completeRequest.getResponseNonce().isEmpty()) {
-      if (!completeRequest.getResponseNonce().equals(resourceNonce)) {
-        // envoy is acking a previous version, we should wait for the latest response
-        return;
-      }
-
-      // envoy is acking o nacking previous response
+      // envoy is replying to a response we sent, get and clear respective response
+      LatestDeltaDiscoveryResponse response = clearResponse(requestTypeUrl, completeRequest.getResponseNonce());
       if (!completeRequest.hasErrorDetail()) {
-        // update tracked resources only if envoy has acked
+        // if envoy has acked, update tracked resources
+        // from the corresponding response
         updateTrackedResources(requestTypeUrl,
-            latestDiscoveryResponse.resourceVersions(),
-            request.getResourceNamesSubscribeList(),
-            latestDiscoveryResponse.removedResources(),
-            request.getResourceNamesUnsubscribeList());
+            response.resourceVersions(),
+            response.removedResources());
       }
-    } else {
-      // envoy is requesting new resources
-      // initialResourceVersionsMap return empty map if not first request
-      updateTrackedResources(requestTypeUrl,
-          request.getInitialResourceVersionsMap(),
-          request.getResourceNamesSubscribeList(),
-          Collections.emptyList(),
-          request.getResourceNamesUnsubscribeList());
     }
 
-    // schedule a watch creation to allow merging subsequent resource requests
-    executor.execute(() -> {
-      ScheduledFuture<?> handle = handle(requestTypeUrl);
-      if (handle != null) {
-        handle.cancel(false);
-      }
-      setHandle(requestTypeUrl, executor.schedule(() ->
-          computeWatch(requestTypeUrl, () -> discoverySever.configWatcher.createDeltaWatch(
-              completeRequest,
-              version,
-              resourceVersions(requestTypeUrl),
-              pendingResources(requestTypeUrl),
-              isWildcard(requestTypeUrl),
-              r -> executor.execute(() -> send(r, requestTypeUrl)),
-              hasClusterChanged
-          )), 20, TimeUnit.MILLISECONDS));
-    });
+    // if nonce is empty, envoy is only requesting new resources or this is a new connection,
+    // in either case we have already updated the subscriptions
+
+    if (responseCount(requestTypeUrl) == 0) {
+      // we should only create watches when there's no pending ack, this ensures
+      // we don't have two outstanding responses
+      computeWatch(requestTypeUrl, () -> discoverySever.configWatcher.createDeltaWatch(
+          completeRequest,
+          version,
+          resourceVersions(requestTypeUrl),
+          pendingResources(requestTypeUrl),
+          isWildcard(requestTypeUrl),
+          r -> executor.execute(() -> send(r, requestTypeUrl)),
+          hasClusterChanged
+      ));
+    }
   }
-
-  abstract ScheduledFuture<?> handle(String typeUrl);
-
-  abstract void setHandle(String typeUrl, ScheduledFuture<?> handle);
 
   @Override
   public void onError(Throwable t) {
@@ -223,8 +203,9 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
     // Store the latest response *before* we send the response. This ensures that by the time the request
     // is processed the map is guaranteed to be updated. Doing it afterwards leads to a race conditions
     // which may see the incoming request arrive before the map is updated, failing the nonce check erroneously.
-    setLatestResponse(
+    setResponse(
         typeUrl,
+        nonce,
         LatestDeltaDiscoveryResponse.create(
             nonce,
             response.version(),
@@ -235,6 +216,7 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
             response.removedResources()
         )
     );
+    setLatestVersion(typeUrl, response.version());
     synchronized (responseObserver) {
       if (!isClosing) {
         try {
@@ -252,9 +234,15 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
 
   abstract boolean ads();
 
-  abstract LatestDeltaDiscoveryResponse latestResponse(String typeUrl);
+  abstract void setLatestVersion(String typeUrl, String version);
 
-  abstract void setLatestResponse(String typeUrl, LatestDeltaDiscoveryResponse response);
+  abstract String latestVersion(String typeUrl);
+
+  abstract void setResponse(String typeUrl, String nonce, LatestDeltaDiscoveryResponse response);
+
+  abstract LatestDeltaDiscoveryResponse clearResponse(String typeUrl, String nonce);
+
+  abstract int responseCount(String typeUrl);
 
   abstract Map<String, String> resourceVersions(String typeUrl);
 
@@ -264,9 +252,11 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
 
   abstract void updateTrackedResources(String typeUrl,
                                        Map<String, String> resourcesVersions,
-                                       List<String> resourceNamesSubscribe,
-                                       List<String> removedResources,
-                                       List<String> resourceNamesUnsubscribe);
+                                       List<String> removedResources);
+
+  abstract void updateSubscriptions(String typeUrl,
+                                    List<String> resourceNamesSubscribe,
+                                    List<String> resourceNamesUnsubscribe);
 
   abstract void computeWatch(String typeUrl, Supplier<DeltaWatch> watchCreator);
 }

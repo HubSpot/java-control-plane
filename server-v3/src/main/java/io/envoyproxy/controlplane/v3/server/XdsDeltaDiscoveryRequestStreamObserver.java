@@ -10,8 +10,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.function.Supplier;
 
 /**
@@ -24,8 +25,8 @@ public class XdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   private final Set<String> pendingResources;
   private final boolean isWildcard;
   private volatile DeltaWatch watch;
-  private volatile LatestDeltaDiscoveryResponse latestDiscoveryResponse;
-  private ScheduledFuture<?> handle;
+  private volatile String latestVersion;
+  private final ConcurrentMap<String, LatestDeltaDiscoveryResponse> responses;
 
   XdsDeltaDiscoveryRequestStreamObserver(String defaultTypeUrl,
                                          StreamObserver<DeltaDiscoveryResponse> responseObserver,
@@ -38,21 +39,12 @@ public class XdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
     this.isWildcard = defaultTypeUrl.equals(Resources.CLUSTER_TYPE_URL)
         || defaultTypeUrl.equals(Resources.LISTENER_TYPE_URL)
         || defaultTypeUrl.equals(Resources.SCOPED_ROUTE_TYPE_URL);
+    responses = new ConcurrentHashMap<>();
   }
 
   @Override
   public void onNext(DeltaDiscoveryRequest request) {
     super.onNext(request);
-  }
-
-  @Override
-  ScheduledFuture<?> handle(String typeUrl) {
-    return handle;
-  }
-
-  @Override
-  void setHandle(String typeUrl, ScheduledFuture<?> handle) {
-    this.handle = handle;
   }
 
   @Override
@@ -68,13 +60,28 @@ public class XdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   }
 
   @Override
-  LatestDeltaDiscoveryResponse latestResponse(String typeUrl) {
-    return latestDiscoveryResponse;
+  void setLatestVersion(String typeUrl, String version) {
+    latestVersion = version;
   }
 
   @Override
-  void setLatestResponse(String typeUrl, LatestDeltaDiscoveryResponse response) {
-    latestDiscoveryResponse = response;
+  String latestVersion(String typeUrl) {
+    return latestVersion;
+  }
+
+  @Override
+  void setResponse(String typeUrl, String nonce, LatestDeltaDiscoveryResponse response) {
+    responses.put(nonce, response);
+  }
+
+  @Override
+  LatestDeltaDiscoveryResponse clearResponse(String typeUrl, String nonce) {
+    return responses.remove(nonce);
+  }
+
+  @Override
+  int responseCount(String typeUrl) {
+    return responses.size();
   }
 
   @Override
@@ -95,16 +102,18 @@ public class XdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   @Override
   void updateTrackedResources(String typeUrl,
                               Map<String, String> resourcesVersions,
-                              List<String> resourceNamesSubscribe,
-                              List<String> removedResources,
-                              List<String> resourceNamesUnsubscribe) {
+                              List<String> removedResources) {
 
     resourcesVersions.forEach((k, v) -> {
       trackedResources.put(k, v);
       pendingResources.remove(k);
     });
-    pendingResources.addAll(resourceNamesSubscribe);
     removedResources.forEach(trackedResources::remove);
+  }
+
+  @Override
+  void updateSubscriptions(String typeUrl, List<String> resourceNamesSubscribe, List<String> resourceNamesUnsubscribe) {
+    pendingResources.addAll(resourceNamesSubscribe);
     resourceNamesUnsubscribe.forEach(s -> {
       trackedResources.remove(s);
       pendingResources.remove(s);
