@@ -115,15 +115,19 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
     // if nonce is empty, envoy is only requesting new resources or this is a new connection,
     // in either case we have already updated the subscriptions
 
-    computeWatch(requestTypeUrl, () -> discoverySever.configWatcher.createDeltaWatch(
-        completeRequest,
-        version,
-        resourceVersions(requestTypeUrl),
-        pendingResources(requestTypeUrl),
-        isWildcard(requestTypeUrl),
-        r -> executor.execute(() -> send(r, requestTypeUrl)),
-        hasClusterChanged
-    ));
+    if (responseCount(requestTypeUrl) == 0) {
+      // we should only create watches when there's no pending ack, this ensures
+      // we don't have two outstanding responses
+      computeWatch(requestTypeUrl, () -> discoverySever.configWatcher.createDeltaWatch(
+          completeRequest,
+          version,
+          resourceVersions(requestTypeUrl),
+          pendingResources(requestTypeUrl),
+          isWildcard(requestTypeUrl),
+          r -> executor.execute(() -> send(r, requestTypeUrl)),
+          hasClusterChanged
+      ));
+    }
   }
 
   @Override
@@ -237,6 +241,8 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
   abstract void setResponse(String typeUrl, String nonce, LatestDeltaDiscoveryResponse response);
 
   abstract LatestDeltaDiscoveryResponse clearResponse(String typeUrl, String nonce);
+
+  abstract int responseCount(String typeUrl);
 
   abstract Map<String, String> resourceVersions(String typeUrl);
 
