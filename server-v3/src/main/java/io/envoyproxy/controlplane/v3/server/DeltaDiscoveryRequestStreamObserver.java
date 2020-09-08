@@ -116,8 +116,8 @@ public abstract class DeltaDiscoveryRequestStreamObserver implements StreamObser
     // in either case we have already updated the subscriptions
 
     if (responseCount(requestTypeUrl) == 0) {
-      // we should only create watches when there's no pending ack, this ensures
-      // we don't have two outstanding responses
+      // we should only create watches when there's no pending ack
+      // this tries to ensure we don't have two outstanding responses
       computeWatch(requestTypeUrl, () -> discoverySever.configWatcher.createDeltaWatch(
           completeRequest,
           version,

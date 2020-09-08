@@ -27,6 +27,8 @@ public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   private final ConcurrentMap<String, DeltaWatch> watches;
   private final ConcurrentMap<String, String> latestVersion;
   private final ConcurrentMap<String, ConcurrentHashMap<String, LatestDeltaDiscoveryResponse>> responses;
+  // tracked and pending resources are always accessed in the observer
+  // so they are safe from race, no need for concurrent map
   private final Map<String, Map<String, String>> trackedResourceMap;
   private final Map<String, Set<String>> pendingResourceMap;
 
@@ -37,9 +39,9 @@ public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
     super(ANY_TYPE_URL, responseObserver, streamId, executor, discoveryServer);
     this.watches = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
     this.latestVersion = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
+    this.responses = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
     this.trackedResourceMap = new HashMap<>(Resources.TYPE_URLS.size());
     this.pendingResourceMap = new HashMap<>(Resources.TYPE_URLS.size());
-    this.responses = new ConcurrentHashMap<>(Resources.TYPE_URLS.size());
   }
 
   @Override
@@ -134,11 +136,12 @@ public class AdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
   void updateSubscriptions(String typeUrl, List<String> resourceNamesSubscribe, List<String> resourceNamesUnsubscribe) {
     Map<String, String> trackedResources = trackedResourceMap.computeIfAbsent(typeUrl, s -> new HashMap<>());
     Set<String> pendingResources = pendingResourceMap.computeIfAbsent(typeUrl, s -> new HashSet<>());
-    pendingResources.addAll(resourceNamesSubscribe);
+    // unsubscribe first
     resourceNamesUnsubscribe.forEach(s -> {
       trackedResources.remove(s);
       pendingResources.remove(s);
     });
+    pendingResources.addAll(resourceNamesSubscribe);
   }
 
   @Override

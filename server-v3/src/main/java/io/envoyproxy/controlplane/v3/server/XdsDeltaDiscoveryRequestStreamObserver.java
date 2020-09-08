@@ -113,11 +113,12 @@ public class XdsDeltaDiscoveryRequestStreamObserver extends DeltaDiscoveryReques
 
   @Override
   void updateSubscriptions(String typeUrl, List<String> resourceNamesSubscribe, List<String> resourceNamesUnsubscribe) {
-    pendingResources.addAll(resourceNamesSubscribe);
+    // unsubscribe first
     resourceNamesUnsubscribe.forEach(s -> {
       trackedResources.remove(s);
       pendingResources.remove(s);
     });
+    pendingResources.addAll(resourceNamesSubscribe);
   }
 
   @Override
