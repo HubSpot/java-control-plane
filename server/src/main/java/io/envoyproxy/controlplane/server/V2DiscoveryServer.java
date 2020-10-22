@@ -17,6 +17,7 @@ import io.envoyproxy.envoy.api.v2.EndpointDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.api.v2.ListenerDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.api.v2.Resource;
 import io.envoyproxy.envoy.api.v2.RouteDiscoveryServiceGrpc;
+import io.envoyproxy.envoy.api.v2.ScopedRoutesDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.service.discovery.v2.AggregatedDiscoveryServiceGrpc;
 import io.envoyproxy.envoy.service.discovery.v2.SecretDiscoveryServiceGrpc;
 import io.grpc.stub.StreamObserver;
@@ -172,6 +173,25 @@ public class V2DiscoveryServer extends DiscoveryServer<DiscoveryRequest, Discove
           StreamObserver<DeltaDiscoveryResponse> responseObserver) {
 
         return createDeltaRequestHandler(responseObserver, false, Resources.V2.SECRET_TYPE_URL);
+      }
+    };
+  }
+
+  /**
+   * Returns a SRDS implementation that uses this server's {@link ConfigWatcher}.
+   */
+  public ScopedRoutesDiscoveryServiceGrpc.ScopedRoutesDiscoveryServiceImplBase getScopedRouteDiscoveryServiceImpl() {
+    return new ScopedRoutesDiscoveryServiceGrpc.ScopedRoutesDiscoveryServiceImplBase() {
+      @Override
+      public StreamObserver<DiscoveryRequest> streamScopedRoutes(StreamObserver<DiscoveryResponse> responseObserver) {
+        return createRequestHandler(responseObserver, false, Resources.V2.SCOPED_ROUTE_TYPE_URL);
+      }
+
+      @Override
+      public StreamObserver<DeltaDiscoveryRequest> deltaScopedRoutes(
+          StreamObserver<DeltaDiscoveryResponse> responseObserver) {
+
+        return createDeltaRequestHandler(responseObserver, false, Resources.V2.SCOPED_ROUTE_TYPE_URL);
       }
     };
   }

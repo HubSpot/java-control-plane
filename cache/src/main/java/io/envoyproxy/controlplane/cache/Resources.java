@@ -7,6 +7,7 @@ import static io.envoyproxy.controlplane.cache.Resources.ResourceType.CLUSTER;
 import static io.envoyproxy.controlplane.cache.Resources.ResourceType.ENDPOINT;
 import static io.envoyproxy.controlplane.cache.Resources.ResourceType.LISTENER;
 import static io.envoyproxy.controlplane.cache.Resources.ResourceType.ROUTE;
+import static io.envoyproxy.controlplane.cache.Resources.ResourceType.SCOPED_ROUTE;
 import static io.envoyproxy.controlplane.cache.Resources.ResourceType.SECRET;
 import static io.envoyproxy.envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager.RouteSpecifierCase.RDS;
 
@@ -24,6 +25,7 @@ import io.envoyproxy.envoy.api.v2.Cluster.DiscoveryType;
 import io.envoyproxy.envoy.api.v2.ClusterLoadAssignment;
 import io.envoyproxy.envoy.api.v2.Listener;
 import io.envoyproxy.envoy.api.v2.RouteConfiguration;
+import io.envoyproxy.envoy.api.v2.ScopedRouteConfiguration;
 import io.envoyproxy.envoy.api.v2.auth.Secret;
 import io.envoyproxy.envoy.api.v2.listener.Filter;
 import io.envoyproxy.envoy.api.v2.listener.FilterChain;
@@ -45,6 +47,7 @@ public class Resources {
     CLUSTER,
     ENDPOINT,
     LISTENER,
+    SCOPED_ROUTE,
     ROUTE,
     SECRET
   }
@@ -63,6 +66,7 @@ public class Resources {
     private static final String TYPE_URL_PREFIX = "type.googleapis.com/envoy.api.v2.";
     public static final String SECRET_TYPE_URL = TYPE_URL_PREFIX + "auth.Secret";
     public static final String ROUTE_TYPE_URL = TYPE_URL_PREFIX + "RouteConfiguration";
+    public static final String SCOPED_ROUTE_TYPE_URL = TYPE_URL_PREFIX + "ScopedRouteConfiguration";
     public static final String LISTENER_TYPE_URL = TYPE_URL_PREFIX + "Listener";
     public static final String ENDPOINT_TYPE_URL = TYPE_URL_PREFIX + "ClusterLoadAssignment";
     public static final String CLUSTER_TYPE_URL = TYPE_URL_PREFIX + "Cluster";
@@ -71,6 +75,7 @@ public class Resources {
         CLUSTER_TYPE_URL,
         ENDPOINT_TYPE_URL,
         LISTENER_TYPE_URL,
+        SCOPED_ROUTE_TYPE_URL,
         ROUTE_TYPE_URL,
         SECRET_TYPE_URL);
   }
@@ -85,6 +90,8 @@ public class Resources {
         + ".Listener";
     public static final String ROUTE_TYPE_URL = "type.googleapis.com/envoy.config.route.v3"
         + ".RouteConfiguration";
+    public static final String SCOPED_ROUTE_TYPE_URL = "type.googleapis.com/envoy.config.route.v3"
+        + ".ScopedRouteConfiguration";
     public static final String SECRET_TYPE_URL = "type.googleapis.com/envoy.extensions"
         + ".transport_sockets.tls.v3.Secret";
 
@@ -92,6 +99,7 @@ public class Resources {
         CLUSTER_TYPE_URL,
         ENDPOINT_TYPE_URL,
         LISTENER_TYPE_URL,
+        SCOPED_ROUTE_TYPE_URL,
         ROUTE_TYPE_URL,
         SECRET_TYPE_URL);
   }
@@ -100,22 +108,27 @@ public class Resources {
       CLUSTER,
       ENDPOINT,
       LISTENER,
+      SCOPED_ROUTE,
       ROUTE,
       SECRET);
 
-  public static final Map<String, String> V3_TYPE_URLS_TO_V2 = ImmutableMap.of(
-      Resources.V3.CLUSTER_TYPE_URL, Resources.V2.CLUSTER_TYPE_URL,
-      Resources.V3.ENDPOINT_TYPE_URL, Resources.V2.ENDPOINT_TYPE_URL,
-      Resources.V3.LISTENER_TYPE_URL, Resources.V2.LISTENER_TYPE_URL,
-      Resources.V3.ROUTE_TYPE_URL, Resources.V2.ROUTE_TYPE_URL,
-      Resources.V3.SECRET_TYPE_URL, Resources.V2.SECRET_TYPE_URL);
+  public static final Map<String, String> V3_TYPE_URLS_TO_V2 = ImmutableMap.<String, String>builder()
+      .put(Resources.V3.CLUSTER_TYPE_URL, Resources.V2.CLUSTER_TYPE_URL)
+      .put(Resources.V3.ENDPOINT_TYPE_URL, Resources.V2.ENDPOINT_TYPE_URL)
+      .put(Resources.V3.LISTENER_TYPE_URL, Resources.V2.LISTENER_TYPE_URL)
+      .put(Resources.V3.SCOPED_ROUTE_TYPE_URL, Resources.V2.SCOPED_ROUTE_TYPE_URL)
+      .put(Resources.V3.ROUTE_TYPE_URL, Resources.V2.ROUTE_TYPE_URL)
+      .put(Resources.V3.SECRET_TYPE_URL, Resources.V2.SECRET_TYPE_URL)
+      .build();
 
-  public static final Map<String, String> V2_TYPE_URLS_TO_V3 = ImmutableMap.of(
-      Resources.V2.CLUSTER_TYPE_URL, Resources.V3.CLUSTER_TYPE_URL,
-      Resources.V2.ENDPOINT_TYPE_URL, Resources.V3.ENDPOINT_TYPE_URL,
-      Resources.V2.LISTENER_TYPE_URL, Resources.V3.LISTENER_TYPE_URL,
-      Resources.V2.ROUTE_TYPE_URL, Resources.V3.ROUTE_TYPE_URL,
-      Resources.V2.SECRET_TYPE_URL, Resources.V3.SECRET_TYPE_URL);
+  public static final Map<String, String> V2_TYPE_URLS_TO_V3 = ImmutableMap.<String, String>builder()
+      .put(Resources.V2.CLUSTER_TYPE_URL, Resources.V3.CLUSTER_TYPE_URL)
+      .put(Resources.V2.ENDPOINT_TYPE_URL, Resources.V3.ENDPOINT_TYPE_URL)
+      .put(Resources.V2.LISTENER_TYPE_URL, Resources.V3.LISTENER_TYPE_URL)
+      .put(Resources.V2.SCOPED_ROUTE_TYPE_URL, Resources.V3.SCOPED_ROUTE_TYPE_URL)
+      .put(Resources.V2.ROUTE_TYPE_URL, Resources.V3.ROUTE_TYPE_URL)
+      .put(Resources.V2.SECRET_TYPE_URL, Resources.V3.SECRET_TYPE_URL)
+      .build();
 
   public static final Map<String, ResourceType> TYPE_URLS_TO_RESOURCE_TYPE =
       new ImmutableMap.Builder<String, ResourceType>()
@@ -125,6 +138,8 @@ public class Resources {
           .put(Resources.V2.ENDPOINT_TYPE_URL, ENDPOINT)
           .put(Resources.V3.LISTENER_TYPE_URL, LISTENER)
           .put(Resources.V2.LISTENER_TYPE_URL, LISTENER)
+          .put(Resources.V3.SCOPED_ROUTE_TYPE_URL, SCOPED_ROUTE)
+          .put(Resources.V2.SCOPED_ROUTE_TYPE_URL, SCOPED_ROUTE)
           .put(Resources.V3.ROUTE_TYPE_URL, ROUTE)
           .put(Resources.V2.ROUTE_TYPE_URL, ROUTE)
           .put(Resources.V3.SECRET_TYPE_URL, SECRET)
@@ -136,11 +151,13 @@ public class Resources {
           .put(Resources.V2.CLUSTER_TYPE_URL, Cluster.class)
           .put(Resources.V2.ENDPOINT_TYPE_URL, ClusterLoadAssignment.class)
           .put(Resources.V2.LISTENER_TYPE_URL, Listener.class)
+          .put(Resources.V2.SCOPED_ROUTE_TYPE_URL, ScopedRouteConfiguration.class)
           .put(Resources.V2.ROUTE_TYPE_URL, RouteConfiguration.class)
           .put(Resources.V2.SECRET_TYPE_URL, Secret.class)
           .put(Resources.V3.CLUSTER_TYPE_URL, io.envoyproxy.envoy.config.cluster.v3.Cluster.class)
           .put(Resources.V3.ENDPOINT_TYPE_URL, io.envoyproxy.envoy.config.endpoint.v3.ClusterLoadAssignment.class)
           .put(Resources.V3.LISTENER_TYPE_URL, io.envoyproxy.envoy.config.listener.v3.Listener.class)
+          .put(Resources.V3.SCOPED_ROUTE_TYPE_URL, io.envoyproxy.envoy.config.route.v3.ScopedRouteConfiguration.class)
           .put(Resources.V3.ROUTE_TYPE_URL, io.envoyproxy.envoy.config.route.v3.RouteConfiguration.class)
           .put(Resources.V3.SECRET_TYPE_URL, io.envoyproxy.envoy.extensions.transport_sockets.tls.v3.Secret.class)
           .build();
@@ -161,6 +178,10 @@ public class Resources {
 
     if (resource instanceof Listener) {
       return ((Listener) resource).getName();
+    }
+
+    if (resource instanceof ScopedRouteConfiguration) {
+      return ((ScopedRouteConfiguration) resource).getName();
     }
 
     if (resource instanceof RouteConfiguration) {
@@ -185,6 +206,10 @@ public class Resources {
 
     if (resource instanceof io.envoyproxy.envoy.config.route.v3.RouteConfiguration) {
       return ((io.envoyproxy.envoy.config.route.v3.RouteConfiguration) resource).getName();
+    }
+
+    if (resource instanceof io.envoyproxy.envoy.config.route.v3.ScopedRouteConfiguration) {
+      return ((io.envoyproxy.envoy.config.route.v3.ScopedRouteConfiguration) resource).getName();
     }
 
     if (resource instanceof io.envoyproxy.envoy.extensions.transport_sockets.tls.v3.Secret) {
