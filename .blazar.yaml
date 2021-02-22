@@ -1,5 +1,5 @@
 env:
-  SKIP_VERSION_OVERRIDE: true
+  SET_VERSION_OVERRIDE: 1.0-$GIT_BRANCH-SNAPSHOT
   MAVEN_ARGS: -DskipTests
 
 buildpack:
