@@ -5,6 +5,7 @@
     <groupId>io.envoyproxy.controlplane</groupId>
     <artifactId>java-control-plane</artifactId>
     <version>0.1.24-SNAPSHOT</version>
+    <packaging>pom</packaging>
 
     <modules>
         <module>api</module>
@@ -131,7 +132,13 @@
 <!--    </distributionManagement>-->
 
     <build>
-<!--        <plugins>-->
+
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <version>${maven.deploy.plugin.version}</version>
+            </plugin>
 <!--            <plugin>-->
 <!--                <groupId>org.apache.maven.plugins</groupId>-->
 <!--                <artifactId>maven-checkstyle-plugin</artifactId>-->
@@ -217,7 +224,7 @@
 <!--                    </execution>-->
 <!--                </executions>-->
 <!--            </plugin>-->
-<!--        </plugins>-->
+        </plugins>
     </build>
 
 <!--    <profiles>-->
