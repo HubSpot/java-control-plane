@@ -86,6 +86,26 @@ public abstract class Snapshot extends io.envoyproxy.controlplane.cache.Snapshot
         SnapshotResources.create(secrets, secretsVersion));
   }
 
+  public static Snapshot create(
+      Iterable<Cluster> clusters,
+      Iterable<String> clusterVersions,
+      Iterable<ClusterLoadAssignment> endpoints,
+      Iterable<String> endpointsVersions,
+      Iterable<Listener> listeners,
+      Iterable<String> listenersVersions,
+      Iterable<RouteConfiguration> routes,
+      Iterable<String> routesVersions,
+      Iterable<Secret> secrets,
+      Iterable<String> secretsVersions) {
+
+    return new AutoValue_Snapshot(
+        SnapshotResources.create(clusters, clusterVersions),
+        SnapshotResources.create(endpoints, endpointsVersions),
+        SnapshotResources.create(listeners, listenersVersions),
+        SnapshotResources.create(routes, routesVersions),
+        SnapshotResources.create(secrets, secretsVersions));
+  }
+
   /**
    * Returns all v3 cluster items in the CDS payload.
    */
