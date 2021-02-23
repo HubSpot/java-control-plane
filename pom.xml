@@ -39,15 +39,6 @@
         <maven-failsafe-plugin.version>2.21.0</maven-failsafe-plugin.version>
         <jacoco-maven-plugin.version>0.8.2</jacoco-maven-plugin.version>
 
-
-
-<!--        <maven-checkstyle-plugin.version>3.0.0</maven-checkstyle-plugin.version>-->
-<!--        <maven-gpg-plugin.version>1.6</maven-gpg-plugin.version>-->
-<!--        <maven-javadoc-plugin.version>3.0.0</maven-javadoc-plugin.version>-->
-<!--        <maven-release-plugin.version>2.5.3</maven-release-plugin.version>-->
-<!--        <maven-source-plugin.version>3.0.1</maven-source-plugin.version>-->
-<!--        <nexus-staging-maven-plugin.version>1.6.8</nexus-staging-maven-plugin.version>-->
-<!--        <versions-maven-plugin.version>2.7</versions-maven-plugin.version>-->
         <!-- Maven plugin versions -->
         <buildnumber.plugin.version>1.4</buildnumber.plugin.version>
         <maven.compiler.plugin.version>3.8.1</maven.compiler.plugin.version>
@@ -124,164 +115,13 @@
         </dependency>
     </dependencies>
 
-<!--    <distributionManagement>-->
-<!--        <snapshotRepository>-->
-<!--            <id>sonatype-nexus-snapshots</id>-->
-<!--            <url>https://oss.sonatype.org/content/repositories/snapshots</url>-->
-<!--        </snapshotRepository>-->
-<!--    </distributionManagement>-->
-
     <build>
-
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-deploy-plugin</artifactId>
                 <version>${maven.deploy.plugin.version}</version>
             </plugin>
-<!--            <plugin>-->
-<!--                <groupId>org.apache.maven.plugins</groupId>-->
-<!--                <artifactId>maven-checkstyle-plugin</artifactId>-->
-<!--                <version>${maven-checkstyle-plugin.version}</version>-->
-<!--                <dependencies>-->
-<!--                    <dependency>-->
-<!--                        <groupId>com.puppycrawl.tools</groupId>-->
-<!--                        <artifactId>checkstyle</artifactId>-->
-<!--                        <version>${checkstyle.version}</version>-->
-<!--                    </dependency>-->
-<!--                </dependencies>-->
-<!--                <executions>-->
-<!--                    <execution>-->
-<!--                        <id>validate</id>-->
-<!--                        <phase>validate</phase>-->
-<!--                        <configuration>-->
-<!--                            <configLocation>buildscripts/checkstyle.xml</configLocation>-->
-<!--                            <consoleOutput>true</consoleOutput>-->
-<!--                            <encoding>UTF-8</encoding>-->
-<!--                            <failOnViolation>true</failOnViolation>-->
-<!--                            <includeTestSourceDirectory>true</includeTestSourceDirectory>-->
-<!--                            <violationSeverity>warning</violationSeverity>-->
-<!--                        </configuration>-->
-<!--                        <goals>-->
-<!--                            <goal>check</goal>-->
-<!--                        </goals>-->
-<!--                    </execution>-->
-<!--                </executions>-->
-<!--            </plugin>-->
-
-<!--            <plugin>-->
-<!--                <artifactId>maven-javadoc-plugin</artifactId>-->
-<!--                <version>${maven-javadoc-plugin.version}</version>-->
-<!--                <configuration>-->
-<!--                    <author>false</author>-->
-<!--                    <breakiterator>true</breakiterator>-->
-<!--                    <doclint>accessibility,html,reference,syntax</doclint>-->
-<!--                    <keywords>true</keywords>-->
-<!--                    <version>false</version>-->
-<!--                    <failOnError>false</failOnError>-->
-<!--                </configuration>-->
-<!--                <executions>-->
-<!--                    <execution>-->
-<!--                        <id>attach-javadocs</id>-->
-<!--                        <goals>-->
-<!--                            <goal>jar</goal>-->
-<!--                        </goals>-->
-<!--                    </execution>-->
-<!--                </executions>-->
-<!--            </plugin>-->
-
-<!--            <plugin>-->
-<!--                <groupId>org.apache.maven.plugins</groupId>-->
-<!--                <artifactId>maven-source-plugin</artifactId>-->
-<!--                <version>${maven-source-plugin.version}</version>-->
-<!--                <executions>-->
-<!--                    <execution>-->
-<!--                        <id>attach-sources-no-fork</id>-->
-<!--                        <phase>package</phase>-->
-<!--                        <goals>-->
-<!--                            <goal>jar-no-fork</goal>-->
-<!--                        </goals>-->
-<!--                    </execution>-->
-<!--                </executions>-->
-<!--            </plugin>-->
-
-<!--            <plugin>-->
-<!--                <groupId>org.jacoco</groupId>-->
-<!--                <artifactId>jacoco-maven-plugin</artifactId>-->
-<!--                <version>${jacoco-maven-plugin.version}</version>-->
-<!--                <executions>-->
-<!--                    <execution>-->
-<!--                        <id>jacoco-prepare-ut-agent</id>-->
-<!--                        <goals>-->
-<!--                            <goal>prepare-agent</goal>-->
-<!--                        </goals>-->
-<!--                    </execution>-->
-<!--                    <execution>-->
-<!--                        <id>jacoco-prepare-it-agent</id>-->
-<!--                        <goals>-->
-<!--                            <goal>prepare-agent-integration</goal>-->
-<!--                        </goals>-->
-<!--                    </execution>-->
-<!--                </executions>-->
-<!--            </plugin>-->
         </plugins>
     </build>
-
-<!--    <profiles>-->
-<!--        <profile>-->
-<!--            <id>ci</id>-->
-<!--            <build>-->
-<!--                <plugins>-->
-<!--                    <plugin>-->
-<!--                        <groupId>org.apache.maven.plugins</groupId>-->
-<!--                        <artifactId>maven-release-plugin</artifactId>-->
-<!--                        <version>${maven-release-plugin.version}</version>-->
-<!--                        <configuration>-->
-<!--                            <autoVersionSubmodules>true</autoVersionSubmodules>-->
-<!--                            <tagNameFormat>v@{project.version}</tagNameFormat>-->
-<!--                        </configuration>-->
-<!--                    </plugin>-->
-
-<!--                    <plugin>-->
-<!--                        <groupId>org.codehaus.mojo</groupId>-->
-<!--                        <artifactId>versions-maven-plugin</artifactId>-->
-<!--                        <version>${versions-maven-plugin.version}</version>-->
-<!--                    </plugin>-->
-
-<!--                    <plugin>-->
-<!--                        <groupId>org.sonatype.plugins</groupId>-->
-<!--                        <artifactId>nexus-staging-maven-plugin</artifactId>-->
-<!--                        <version>${nexus-staging-maven-plugin.version}</version>-->
-<!--                        <extensions>true</extensions>-->
-<!--                        <configuration>-->
-<!--                            <serverId>sonatype-nexus-staging</serverId>-->
-<!--                            <nexusUrl>https://oss.sonatype.org/</nexusUrl>-->
-<!--                            <autoReleaseAfterClose>true</autoReleaseAfterClose>-->
-<!--                        </configuration>-->
-<!--                    </plugin>-->
-<!--                </plugins>-->
-<!--            </build>-->
-<!--        </profile>-->
-<!--        <profile>-->
-<!--            <id>signing</id>-->
-<!--            <build>-->
-<!--                <plugins>-->
-<!--                    <plugin>-->
-<!--                        <groupId>org.apache.maven.plugins</groupId>-->
-<!--                        <artifactId>maven-gpg-plugin</artifactId>-->
-<!--                        <version>${maven-gpg-plugin.version}</version>-->
-<!--                        <executions>-->
-<!--                            <execution>-->
-<!--                                <id>sign-artifacts</id>-->
-<!--                                <phase>verify</phase>-->
-<!--                                <goals>-->
-<!--                                    <goal>sign</goal>-->
-<!--                                </goals>-->
-<!--                            </execution>-->
-<!--                        </executions>-->
-<!--                    </plugin>-->
-<!--                </plugins>-->
-<!--            </build>-->
-<!--        </profile>-->
-<!--    </profiles>-->
 </project>
