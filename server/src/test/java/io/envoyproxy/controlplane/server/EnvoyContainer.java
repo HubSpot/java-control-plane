@@ -19,12 +19,13 @@ class EnvoyContainer extends GenericContainer<EnvoyContainer> {
   private static final String LAUNCH_ENVOY_SCRIPT_DEST = "/usr/local/bin/launch_envoy.sh";
 
   static final int ADMIN_PORT = 9901;
+  static final int LISTENER_PORT = 10000;
 
   private final String config;
   private final Supplier<Integer> controlPlanePortSupplier;
 
   EnvoyContainer(String config, Supplier<Integer> controlPlanePortSupplier) {
-    super("envoyproxy/envoy-alpine-dev:latest");
+    super("envoyproxy/envoy-alpine:v1.17-latest");
 
     this.config = config;
     this.controlPlanePortSupplier = controlPlanePortSupplier;
@@ -41,10 +42,10 @@ class EnvoyContainer extends GenericContainer<EnvoyContainer> {
     withCommand(
         "/bin/sh", "/usr/local/bin/launch_envoy.sh",
         Integer.toString(controlPlanePortSupplier.get()),
-        CONFIG_DEST,
-        "-l", "debug");
+        CONFIG_DEST
+    );
 
-    getExposedPorts().add(0, ADMIN_PORT);
+//    getExposedPorts().add(0, LISTENER_PORT);
   }
 
   @Override
