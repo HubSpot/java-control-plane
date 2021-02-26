@@ -1,5 +1,6 @@
 package io.envoyproxy.controlplane.server;
 
+import static io.envoyproxy.controlplane.server.EnvoyContainer.LISTENER_PORT;
 import static io.envoyproxy.controlplane.server.V2TestSnapshots.createSnapshot;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,7 +23,6 @@ public class V2DiscoveryServerAdsIT {
 
   private static final String CONFIG = "envoy/ads.v2.config.yaml";
   private static final String GROUP = "key";
-  private static final Integer LISTENER_PORT = 10000;
 
   private static final CountDownLatch onStreamOpenLatch = new CountDownLatch(1);
   private static final CountDownLatch onStreamRequestLatch = new CountDownLatch(1);
