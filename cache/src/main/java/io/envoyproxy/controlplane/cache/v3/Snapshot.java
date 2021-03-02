@@ -50,15 +50,15 @@ public abstract class Snapshot extends io.envoyproxy.controlplane.cache.Snapshot
 
     return new AutoValue_Snapshot(
         SnapshotResources
-            .create(generateSnapshotResourceIterableFromUnderlyingResource(clusters), version),
+            .create(generateSnapshotResourceIterable(clusters), version),
         SnapshotResources
-            .create(generateSnapshotResourceIterableFromUnderlyingResource(endpoints), version),
+            .create(generateSnapshotResourceIterable(endpoints), version),
         SnapshotResources
-            .create(generateSnapshotResourceIterableFromUnderlyingResource(listeners), version),
+            .create(generateSnapshotResourceIterable(listeners), version),
         SnapshotResources
-            .create(generateSnapshotResourceIterableFromUnderlyingResource(routes), version),
+            .create(generateSnapshotResourceIterable(routes), version),
         SnapshotResources
-            .create(generateSnapshotResourceIterableFromUnderlyingResource(secrets), version));
+            .create(generateSnapshotResourceIterable(secrets), version));
   }
 
   /**
@@ -88,15 +88,15 @@ public abstract class Snapshot extends io.envoyproxy.controlplane.cache.Snapshot
 
     // TODO(snowp): add a builder alternative
     return new AutoValue_Snapshot(
-        SnapshotResources.create(generateSnapshotResourceIterableFromUnderlyingResource(clusters),
+        SnapshotResources.create(generateSnapshotResourceIterable(clusters),
             clustersVersion),
-        SnapshotResources.create(generateSnapshotResourceIterableFromUnderlyingResource(endpoints),
+        SnapshotResources.create(generateSnapshotResourceIterable(endpoints),
             endpointsVersion),
-        SnapshotResources.create(generateSnapshotResourceIterableFromUnderlyingResource(listeners),
+        SnapshotResources.create(generateSnapshotResourceIterable(listeners),
             listenersVersion),
         SnapshotResources
-            .create(generateSnapshotResourceIterableFromUnderlyingResource(routes), routesVersion),
-        SnapshotResources.create(generateSnapshotResourceIterableFromUnderlyingResource(secrets),
+            .create(generateSnapshotResourceIterable(routes), routesVersion),
+        SnapshotResources.create(generateSnapshotResourceIterable(secrets),
             secretsVersion));
   }
 
@@ -104,7 +104,7 @@ public abstract class Snapshot extends io.envoyproxy.controlplane.cache.Snapshot
     return () -> iterator;
   }
 
-  private static <T extends Message> Iterable<SnapshotResource<T>> generateSnapshotResourceIterableFromUnderlyingResource(
+  private static <T extends Message> Iterable<SnapshotResource<T>> generateSnapshotResourceIterable(
       Iterable<T> resources) {
     return getIterableFromIterator(
         StreamSupport.stream(resources.spliterator(), false)

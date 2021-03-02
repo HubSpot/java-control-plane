@@ -22,6 +22,12 @@ public abstract class SnapshotResource<T extends Message> {
     );
   }
 
+  /**
+   * Returns a new {@link SnapshotResource} instance.
+   *
+   * @param resource the resource
+   * @param <T>      the type of resource
+   */
   public static <T extends Message> SnapshotResource<T> create(T resource) {
     return new AutoValue_SnapshotResource<>(
         resource,
