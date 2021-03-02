@@ -108,6 +108,25 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
 
     // basically the nonces will count up from 0 to 3 as envoy receives more resources
     assertThat(nonce.toString()).isEqualTo("0123");
+
+    // now write a new snapshot, wait for a few seconds for envoy to pick it up, and
+    // check that the nonces increased again
+    Snapshot snapshot = V3TestSnapshots.createSnapshot(true,
+        "upstream",
+        UPSTREAM.ipAddress(),
+        EchoContainer.PORT,
+        "listener0",
+        LISTENER_PORT,
+        "route0",
+        "2");
+    LOGGER.info("snapshot={}", snapshot);
+    cache.setSnapshot(
+        GROUP,
+        snapshot
+    );
+
+    TimeUnit.SECONDS.sleep(3);
+    assertThat(nonce.toString()).isEqualTo("01234567");
   }
 
   @After
