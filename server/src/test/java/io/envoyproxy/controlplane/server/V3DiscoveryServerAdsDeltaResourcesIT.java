@@ -13,6 +13,7 @@ import io.grpc.netty.NettyServerBuilder;
 import io.restassured.http.ContentType;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -30,24 +31,25 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
 
   private static final CountDownLatch onStreamOpenLatch = new CountDownLatch(1);
   private static final CountDownLatch onStreamRequestLatch = new CountDownLatch(1);
-  private static final CountDownLatch onStreamResponseLatch = new CountDownLatch(1);
+
+  private static  StringBuffer nonce = new StringBuffer();
+
+  private static final SimpleCache<String> cache = new SimpleCache<>(new NodeGroup<String>() {
+    @Override public String hash(Node node) {
+      throw new IllegalStateException("Unexpected v2 request in v3 test");
+    }
+
+    @Override public String hash(io.envoyproxy.envoy.config.core.v3.Node node) {
+      return GROUP;
+    }
+  });
 
   private static final NettyGrpcServerRule ADS = new NettyGrpcServerRule() {
     @Override
     protected void configureServerBuilder(NettyServerBuilder builder) {
-      final SimpleCache<String> cache = new SimpleCache<>(new NodeGroup<String>() {
-        @Override public String hash(Node node) {
-          throw new IllegalStateException("Unexpected v2 request in v3 test");
-        }
-
-        @Override public String hash(io.envoyproxy.envoy.config.core.v3.Node node) {
-          return GROUP;
-        }
-      });
 
       final DiscoveryServerCallbacks callbacks =
-          new V3DeltaDiscoveryServerCallbacks(onStreamOpenLatch, onStreamRequestLatch,
-              onStreamResponseLatch);
+          new V3DeltaDiscoveryServerCallbacks(onStreamOpenLatch, onStreamRequestLatch, nonce);
 
       Snapshot snapshot = V3TestSnapshots.createSnapshot(true,
           "upstream",
@@ -92,8 +94,8 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
     assertThat(onStreamRequestLatch.await(15, TimeUnit.SECONDS)).isTrue()
         .overridingErrorMessage("failed to receive ADS request");
 
-    assertThat(onStreamResponseLatch.await(15, TimeUnit.SECONDS)).isTrue()
-        .overridingErrorMessage("failed to send ADS response");
+    // there is no onStreamResponseLatch because V3DiscoveryServer doesn't call the callbacks
+    // when responding to a delta request
 
     String baseUri = String.format("http://%s:%d", ENVOY.getContainerIpAddress(), ENVOY.getMappedPort(LISTENER_PORT));
 
@@ -102,6 +104,10 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
             .when().get("/")
             .then().statusCode(200)
             .and().body(containsString(UPSTREAM.response)));
+
+
+    // basically the nonces will count up from 0 to 3 as envoy receives more resources
+    assertThat(nonce.toString()).isEqualTo("0123");
   }
 
   @After
