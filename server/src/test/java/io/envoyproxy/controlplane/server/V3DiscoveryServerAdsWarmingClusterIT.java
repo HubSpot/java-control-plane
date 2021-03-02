@@ -9,7 +9,6 @@ import static org.hamcrest.Matchers.containsString;
 
 import com.google.protobuf.util.Durations;
 import io.envoyproxy.controlplane.cache.NodeGroup;
-import io.envoyproxy.controlplane.cache.SnapshotResource;
 import io.envoyproxy.controlplane.cache.TestResources;
 import io.envoyproxy.controlplane.cache.v3.SimpleCache;
 import io.envoyproxy.controlplane.cache.v3.Snapshot;
@@ -201,13 +200,13 @@ public class V3DiscoveryServerAdsWarmingClusterIT {
 
     // here we have new version of resources other than CDS.
     return Snapshot.create(
-        ImmutableList.of(SnapshotResource.create(cluster, "1")),
+        ImmutableList.of(cluster),
         "1",
-        ImmutableList.of(SnapshotResource.create(endpoint, "2")),
+        ImmutableList.of(endpoint),
         "2",
-        ImmutableList.of(SnapshotResource.create(listener, "2")),
+        ImmutableList.of(listener),
         "2",
-        ImmutableList.of(SnapshotResource.create(route, "2")),
+        ImmutableList.of(route),
         "2",
         ImmutableList.of(),
         "2");

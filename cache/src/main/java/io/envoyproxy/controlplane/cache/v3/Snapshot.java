@@ -5,6 +5,7 @@ import static io.envoyproxy.controlplane.cache.Resources.TYPE_URLS_TO_RESOURCE_T
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
+import com.google.protobuf.Message;
 import io.envoyproxy.controlplane.cache.Resources;
 import io.envoyproxy.controlplane.cache.Resources.ResourceType;
 import io.envoyproxy.controlplane.cache.SnapshotConsistencyException;
@@ -16,9 +17,11 @@ import io.envoyproxy.envoy.config.listener.v3.Listener;
 import io.envoyproxy.envoy.config.route.v3.RouteConfiguration;
 import io.envoyproxy.envoy.extensions.transport_sockets.tls.v3.Secret;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 
 /**
  * {@code Snapshot} is a data class that contains an internally consistent snapshot of v3 xDS
@@ -26,6 +29,7 @@ import java.util.Set;
  */
 @AutoValue
 public abstract class Snapshot extends io.envoyproxy.controlplane.cache.Snapshot {
+
   /**
    * Returns a new {@link io.envoyproxy.controlplane.cache.v2.Snapshot} instance that is versioned
    * uniformly across all resources.
@@ -37,19 +41,24 @@ public abstract class Snapshot extends io.envoyproxy.controlplane.cache.Snapshot
    * @param version   the version associated with all resources in this snapshot
    */
   public static Snapshot create(
-      Iterable<SnapshotResource<Cluster>> clusters,
-      Iterable<SnapshotResource<ClusterLoadAssignment>> endpoints,
-      Iterable<SnapshotResource<Listener>> listeners,
-      Iterable<SnapshotResource<RouteConfiguration>> routes,
-      Iterable<SnapshotResource<Secret>> secrets,
+      Iterable<Cluster> clusters,
+      Iterable<ClusterLoadAssignment> endpoints,
+      Iterable<Listener> listeners,
+      Iterable<RouteConfiguration> routes,
+      Iterable<Secret> secrets,
       String version) {
 
     return new AutoValue_Snapshot(
-        SnapshotResources.create(clusters, version),
-        SnapshotResources.create(endpoints, version),
-        SnapshotResources.create(listeners, version),
-        SnapshotResources.create(routes, version),
-        SnapshotResources.create(secrets, version));
+        SnapshotResources
+            .create(generateSnapshotResourceIterableFromUnderlyingResource(clusters), version),
+        SnapshotResources
+            .create(generateSnapshotResourceIterableFromUnderlyingResource(endpoints), version),
+        SnapshotResources
+            .create(generateSnapshotResourceIterableFromUnderlyingResource(listeners), version),
+        SnapshotResources
+            .create(generateSnapshotResourceIterableFromUnderlyingResource(routes), version),
+        SnapshotResources
+            .create(generateSnapshotResourceIterableFromUnderlyingResource(secrets), version));
   }
 
   /**
@@ -66,44 +75,41 @@ public abstract class Snapshot extends io.envoyproxy.controlplane.cache.Snapshot
    * @param routesVersion    the version of the route resources
    */
   public static Snapshot create(
-      Iterable<SnapshotResource<Cluster>> clusters,
+      Iterable<Cluster> clusters,
       String clustersVersion,
-      Iterable<SnapshotResource<ClusterLoadAssignment>> endpoints,
+      Iterable<ClusterLoadAssignment> endpoints,
       String endpointsVersion,
-      Iterable<SnapshotResource<Listener>> listeners,
+      Iterable<Listener> listeners,
       String listenersVersion,
-      Iterable<SnapshotResource<RouteConfiguration>> routes,
+      Iterable<RouteConfiguration> routes,
       String routesVersion,
-      Iterable<SnapshotResource<Secret>> secrets,
+      Iterable<Secret> secrets,
       String secretsVersion) {
 
     // TODO(snowp): add a builder alternative
     return new AutoValue_Snapshot(
-        SnapshotResources.create(clusters, clustersVersion),
-        SnapshotResources.create(endpoints, endpointsVersion),
-        SnapshotResources.create(listeners, listenersVersion),
-        SnapshotResources.create(routes, routesVersion),
-        SnapshotResources.create(secrets, secretsVersion));
+        SnapshotResources.create(generateSnapshotResourceIterableFromUnderlyingResource(clusters),
+            clustersVersion),
+        SnapshotResources.create(generateSnapshotResourceIterableFromUnderlyingResource(endpoints),
+            endpointsVersion),
+        SnapshotResources.create(generateSnapshotResourceIterableFromUnderlyingResource(listeners),
+            listenersVersion),
+        SnapshotResources
+            .create(generateSnapshotResourceIterableFromUnderlyingResource(routes), routesVersion),
+        SnapshotResources.create(generateSnapshotResourceIterableFromUnderlyingResource(secrets),
+            secretsVersion));
   }
 
-  public static Snapshot create(
-      Iterable<Cluster> clusters,
-      Iterable<String> clusterVersions,
-      Iterable<ClusterLoadAssignment> endpoints,
-      Iterable<String> endpointsVersions,
-      Iterable<Listener> listeners,
-      Iterable<String> listenersVersions,
-      Iterable<RouteConfiguration> routes,
-      Iterable<String> routesVersions,
-      Iterable<Secret> secrets,
-      Iterable<String> secretsVersions) {
+  private static <T> Iterable<T> getIterableFromIterator(Iterator<T> iterator) {
+    return () -> iterator;
+  }
 
-    return new AutoValue_Snapshot(
-        SnapshotResources.create(clusters, clusterVersions),
-        SnapshotResources.create(endpoints, endpointsVersions),
-        SnapshotResources.create(listeners, listenersVersions),
-        SnapshotResources.create(routes, routesVersions),
-        SnapshotResources.create(secrets, secretsVersions));
+  private static <T extends Message> Iterable<SnapshotResource<T>> generateSnapshotResourceIterableFromUnderlyingResource(
+      Iterable<T> resources) {
+    return getIterableFromIterator(
+        StreamSupport.stream(resources.spliterator(), false)
+            .map((r) -> SnapshotResource.create(r))
+            .iterator());
   }
 
   /**

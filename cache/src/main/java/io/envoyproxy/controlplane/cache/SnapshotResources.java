@@ -2,9 +2,7 @@ package io.envoyproxy.controlplane.cache;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Streams;
 import com.google.protobuf.Message;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collector;
@@ -29,24 +27,6 @@ public abstract class SnapshotResources<T extends Message> {
     );
   }
 
-  /**
-   * Returns a new {@link SnapshotResources} instance.
-   *
-   * @param resources the resources in this collection
-   * @param versions  the version associated with the resources in this collection
-   * @param <T>       the type of resources in this collection
-   * @return
-   */
-  public static <T extends Message> SnapshotResources<T> create(
-      Iterable<T> resources,
-      Iterable<String> versions) {
-    ImmutableMap<String, SnapshotResource<T>> map = resourcesMap(resources, versions);
-    return new AutoValue_SnapshotResources<>(
-        map,
-        // todo: well this is super wrong, but leave it here for now
-        (r) -> map.values().asList().get(0).version()
-    );
-  }
 
   /**
    * Returns a new {@link SnapshotResources} instance with versions by resource name.
@@ -63,10 +43,6 @@ public abstract class SnapshotResources<T extends Message> {
         versionResolver);
   }
 
-  public static <T> Iterable<T> getIterableFromIterator(Iterator<T> iterator) {
-    return () -> iterator;
-  }
-
   private static <T extends Message> ImmutableMap<String, SnapshotResource<T>> resourcesMap(
       Iterable<SnapshotResource<T>> resources) {
     return StreamSupport.stream(resources.spliterator(), false)
@@ -76,18 +52,6 @@ public abstract class SnapshotResources<T extends Message> {
                 (b, e) -> b.put(Resources.getResourceName(e.resource()), e),
                 (b1, b2) -> b1.putAll(b2.build()),
                 ImmutableMap.Builder::build));
-  }
-
-  private static <T extends Message> ImmutableMap<String, SnapshotResource<T>> resourcesMap(
-      Iterable<T> resources, Iterable<String> versions) {
-    Iterator<SnapshotResource<T>> iterator = Streams.zip(
-        StreamSupport.stream(resources.spliterator(), false),
-        StreamSupport.stream(versions.spliterator(), false),
-        (resource, version) -> {
-          return SnapshotResource.create(resource, version);
-        }).iterator();
-    return resourcesMap(getIterableFromIterator(iterator));
-
   }
 
   /**

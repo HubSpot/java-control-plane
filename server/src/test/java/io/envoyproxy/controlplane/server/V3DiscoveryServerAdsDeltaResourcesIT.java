@@ -13,7 +13,6 @@ import io.grpc.netty.NettyServerBuilder;
 import io.restassured.http.ContentType;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -105,17 +104,17 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
             .then().statusCode(200)
             .and().body(containsString(UPSTREAM.response)));
 
-
     // basically the nonces will count up from 0 to 3 as envoy receives more resources
     assertThat(nonce.toString()).isEqualTo("0123");
 
-    // now write a new snapshot, wait for a few seconds for envoy to pick it up, and
-    // check that the nonces increased again
+    // now write a new snapshot, with the only change being an update
+    // to the listener name, wait for a few seconds for envoy to pick it up, and
+    // check that the nonc envoy most recently ACK'd is "4"
     Snapshot snapshot = V3TestSnapshots.createSnapshot(true,
         "upstream",
         UPSTREAM.ipAddress(),
         EchoContainer.PORT,
-        "listener0",
+        "listener1",
         LISTENER_PORT,
         "route0",
         "2");
@@ -126,7 +125,7 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
     );
 
     TimeUnit.SECONDS.sleep(3);
-    assertThat(nonce.toString()).isEqualTo("01234567");
+    assertThat(nonce.toString()).isEqualTo("01234");
   }
 
   @After
