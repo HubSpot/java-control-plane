@@ -41,10 +41,3 @@ static_resources:
                     socket_address:
                       address: HOST_IP
                       port_value: HOST_PORT
-#  - connect_timeout: 1s
-#    hosts:
-#    - socket_address:
-#        address: HOST_IP
-#        port_value: HOST_PORT
-#    http2_protocol_options: {}
-#    name: xds_cluster

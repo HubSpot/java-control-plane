@@ -4,7 +4,7 @@ admin:
     socket_address: { address: 0.0.0.0, port_value: 9901 }
 dynamic_resources:
   ads_config:
-    api_type: GRPC
+    api_type: DELTA_GRPC
     grpc_services:
       envoy_grpc:
         cluster_name: ads_cluster
