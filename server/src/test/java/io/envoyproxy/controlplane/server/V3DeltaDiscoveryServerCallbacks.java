@@ -1,6 +1,5 @@
 package io.envoyproxy.controlplane.server;
 
-
 import io.envoyproxy.envoy.api.v2.DeltaDiscoveryRequest;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryRequest;
 import io.envoyproxy.envoy.service.discovery.v3.DiscoveryResponse;
@@ -15,6 +14,7 @@ public class V3DeltaDiscoveryServerCallbacks implements DiscoveryServerCallbacks
   private final CountDownLatch onStreamOpenLatch;
   private final CountDownLatch onStreamRequestLatch;
   private StringBuffer nonce;
+
   /**
    * Returns an implementation of DiscoveryServerCallbacks that throws if it sees a v2 request,
    * and counts down on provided latches in response to certain events.

@@ -45,7 +45,6 @@ class EnvoyContainer extends GenericContainer<EnvoyContainer> {
         CONFIG_DEST
     );
 
-//    getExposedPorts().add(0, LISTENER_PORT);
   }
 
   @Override
