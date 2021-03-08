@@ -124,8 +124,9 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
         snapshot
     );
 
-    TimeUnit.SECONDS.sleep(3);
-    assertThat(nonce.toString()).isEqualTo("01234");
+    await().atMost(3, TimeUnit.SECONDS).untilAsserted(
+        () -> assertThat(nonce.toString()).isEqualTo("01234")
+    );
   }
 
   @After
