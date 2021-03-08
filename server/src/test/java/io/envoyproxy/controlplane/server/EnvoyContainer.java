@@ -42,8 +42,8 @@ class EnvoyContainer extends GenericContainer<EnvoyContainer> {
     withCommand(
         "/bin/sh", "/usr/local/bin/launch_envoy.sh",
         Integer.toString(controlPlanePortSupplier.get()),
-        CONFIG_DEST
-    );
+        CONFIG_DEST,
+        "-l", "debug");
 
   }
 
