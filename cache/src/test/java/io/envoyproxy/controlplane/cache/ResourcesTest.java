@@ -60,8 +60,9 @@ public class ResourcesTest {
       SnapshotResource.create(TestResources.createEndpointV3(V3_CLUSTER_NAME, ENDPOINT_PORT),
           UUID.randomUUID().toString());
   private static final SnapshotResource<io.envoyproxy.envoy.config.listener.v3.Listener>
-      V3_LISTENER = SnapshotResource.create(TestResources.createListenerV3(ADS, V3, V3, V3_LISTENER_NAME,
-      LISTENER_PORT, V3_ROUTE_NAME), UUID.randomUUID().toString());
+      V3_LISTENER = SnapshotResource
+      .create(TestResources.createListenerV3(ADS, false, V3, V3, V3_LISTENER_NAME,
+          LISTENER_PORT, V3_ROUTE_NAME), UUID.randomUUID().toString());
   private static final SnapshotResource<io.envoyproxy.envoy.config.route.v3.RouteConfiguration> V3_ROUTE =
       SnapshotResource.create(TestResources.createRouteV3(V3_ROUTE_NAME, V3_CLUSTER_NAME),
           UUID.randomUUID().toString());

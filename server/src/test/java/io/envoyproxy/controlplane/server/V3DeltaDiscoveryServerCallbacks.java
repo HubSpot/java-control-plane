@@ -44,6 +44,7 @@ public class V3DeltaDiscoveryServerCallbacks implements DiscoveryServerCallbacks
 
   @Override
   public void onV3StreamRequest(long streamId, DiscoveryRequest request) {
+    LOGGER.error("request={}", request);
     throw new IllegalStateException("Unexpected stream request");
 
   }
@@ -56,7 +57,8 @@ public class V3DeltaDiscoveryServerCallbacks implements DiscoveryServerCallbacks
   @Override
   public void onV3StreamDeltaRequest(long streamId,
       io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryRequest request) {
-    LOGGER.info("Got a v3StreamRequest, request={}", request);
+    LOGGER.info("Got a v3StreamDeltaRequest");
+    LOGGER.info("errorDetail={}", request.getErrorDetail().toString());
     nonce.append(request.getResponseNonce());
     onStreamRequestLatch.countDown();
   }

@@ -36,7 +36,7 @@ public class SnapshotTest {
   private static final Cluster CLUSTER = TestResources.createClusterV3(CLUSTER_NAME);
   private static final ClusterLoadAssignment ENDPOINT = TestResources
       .createEndpointV3(CLUSTER_NAME, ENDPOINT_PORT);
-  private static final Listener LISTENER = TestResources.createListenerV3(ADS, V3, V3,
+  private static final Listener LISTENER = TestResources.createListenerV3(ADS, false, V3, V3,
       LISTENER_NAME, LISTENER_PORT, ROUTE_NAME);
   private static final RouteConfiguration ROUTE = TestResources
       .createRouteV3(ROUTE_NAME, CLUSTER_NAME);

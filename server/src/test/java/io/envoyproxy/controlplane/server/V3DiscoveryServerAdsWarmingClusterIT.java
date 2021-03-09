@@ -161,6 +161,7 @@ public class V3DiscoveryServerAdsWarmingClusterIT {
     cache.setSnapshot(
         GROUP,
         createSnapshot(true,
+            false,
             "upstream",
             UPSTREAM.ipAddress(),
             EchoContainer.PORT,
@@ -194,7 +195,7 @@ public class V3DiscoveryServerAdsWarmingClusterIT {
         .build();
     ClusterLoadAssignment
         endpoint = TestResources.createEndpointV3(clusterName, endpointAddress, endpointPort);
-    Listener listener = TestResources.createListenerV3(ads, V3, V3, listenerName,
+    Listener listener = TestResources.createListenerV3(ads, false, V3, V3, listenerName,
         listenerPort, routeName);
     RouteConfiguration route = TestResources.createRouteV3(routeName, clusterName);
 

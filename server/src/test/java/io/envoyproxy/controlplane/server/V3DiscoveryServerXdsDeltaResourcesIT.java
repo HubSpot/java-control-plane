@@ -13,7 +13,7 @@ import io.grpc.netty.NettyServerBuilder;
 import io.restassured.http.ContentType;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
@@ -21,36 +21,40 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.Network;
 
-public class V3DiscoveryServerAdsDeltaResourcesIT {
-  private static final Logger LOGGER = LoggerFactory.getLogger(V3DiscoveryServerAdsDeltaResourcesIT.class);
+public class V3DiscoveryServerXdsDeltaResourcesIT {
 
-  private static final String CONFIG = "envoy/ads.v3.delta.config.yaml";
+  private static final Logger LOGGER = LoggerFactory
+      .getLogger(V3DiscoveryServerXdsDeltaResourcesIT.class);
+
+  private static final String CONFIG = "envoy/xds.v3.delta.config.yaml";
   private static final String GROUP = "key";
   private static final Integer LISTENER_PORT = 10000;
 
   private static final CountDownLatch onStreamOpenLatch = new CountDownLatch(1);
   private static final CountDownLatch onStreamRequestLatch = new CountDownLatch(1);
 
-  private static  StringBuffer nonce = new StringBuffer();
+  private static StringBuffer nonce = new StringBuffer();
 
   private static final SimpleCache<String> cache = new SimpleCache<>(new NodeGroup<String>() {
-    @Override public String hash(Node node) {
+    @Override
+    public String hash(Node node) {
       throw new IllegalStateException("Unexpected v2 request in v3 test");
     }
 
-    @Override public String hash(io.envoyproxy.envoy.config.core.v3.Node node) {
+    @Override
+    public String hash(io.envoyproxy.envoy.config.core.v3.Node node) {
       return GROUP;
     }
   });
 
-  private static final NettyGrpcServerRule ADS = new NettyGrpcServerRule() {
+  private static final NettyGrpcServerRule XDS = new NettyGrpcServerRule() {
     @Override
     protected void configureServerBuilder(NettyServerBuilder builder) {
 
       final DiscoveryServerCallbacks callbacks =
           new V3DeltaDiscoveryServerCallbacks(onStreamOpenLatch, onStreamRequestLatch, nonce);
 
-      Snapshot snapshot = V3TestSnapshots.createSnapshot(true,
+      Snapshot snapshot = V3TestSnapshots.createSnapshotNoEds(false,
           true,
           "upstream",
           UPSTREAM.ipAddress(),
@@ -67,13 +71,18 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
 
       V3DiscoveryServer server = new V3DiscoveryServer(callbacks, cache);
 
-      builder.addService(server.getAggregatedDiscoveryServiceImpl());
+      builder.addService(server.getRouteDiscoveryServiceImpl());
+      builder.addService(server.getListenerDiscoveryServiceImpl());
+      builder.addService(server.getEndpointDiscoveryServiceImpl());
+      builder.addService(server.getClusterDiscoveryServiceImpl());
+      builder.addService(server.getSecretDiscoveryServiceImpl());
     }
   };
 
   private static final Network NETWORK = Network.newNetwork();
 
-  private static final EnvoyContainer ENVOY = new EnvoyContainer(CONFIG, () -> ADS.getServer().getPort())
+  private static final EnvoyContainer ENVOY = new EnvoyContainer(CONFIG,
+      () -> XDS.getServer().getPort())
       .withExposedPorts(LISTENER_PORT)
       .withNetwork(NETWORK);
 
@@ -83,7 +92,7 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
 
   @ClassRule
   public static final RuleChain RULES = RuleChain.outerRule(UPSTREAM)
-      .around(ADS)
+      .around(XDS)
       .around(ENVOY);
 
   @Test
@@ -97,7 +106,8 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
     // there is no onStreamResponseLatch because V3DiscoveryServer doesn't call the callbacks
     // when responding to a delta request
 
-    String baseUri = String.format("http://%s:%d", ENVOY.getContainerIpAddress(), ENVOY.getMappedPort(LISTENER_PORT));
+    String baseUri = String
+        .format("http://%s:%d", ENVOY.getContainerIpAddress(), ENVOY.getMappedPort(LISTENER_PORT));
 
     await().atMost(5, TimeUnit.SECONDS).ignoreExceptions().untilAsserted(
         () -> given().baseUri(baseUri).contentType(ContentType.TEXT)
@@ -105,13 +115,13 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
             .then().statusCode(200)
             .and().body(containsString(UPSTREAM.response)));
 
-    // basically the nonces will count up from 0 to 3 as envoy receives more resources
-    assertThat(nonce.toString()).isEqualTo("0123");
+    // we'll get three 0 nonces as this relates to the first version of resource state
+    assertThat(nonce.toString()).isEqualTo("000");
 
     // now write a new snapshot, with the only change being an update
     // to the listener name, wait for a few seconds for envoy to pick it up, and
-    // check that the nonce envoy most recently ACK'd is "4"
-    Snapshot snapshot = V3TestSnapshots.createSnapshot(true,
+    // check that the nonce envoy most recently ACK'd is "1"
+    Snapshot snapshot = V3TestSnapshots.createSnapshotNoEds(false,
         true,
         "upstream",
         UPSTREAM.ipAddress(),
@@ -126,13 +136,62 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
         snapshot
     );
 
+    // after the update, we've changed listener1, so will get a new nonce
     await().atMost(3, TimeUnit.SECONDS).untilAsserted(
-        () -> assertThat(nonce.toString()).isEqualTo("01234")
+        () -> assertThat(nonce.toString()).isEqualTo("0001")
     );
   }
 
-  @After
-  public void after() throws Exception {
+  @Test
+  public void validateNewSnapshotVersionButSameUnderlyingResourcesDoesNotTriggerUpdate()
+      throws InterruptedException {
+    assertThat(onStreamOpenLatch.await(15, TimeUnit.SECONDS)).isTrue()
+        .overridingErrorMessage("failed to open ADS stream");
+
+    assertThat(onStreamRequestLatch.await(15, TimeUnit.SECONDS)).isTrue()
+        .overridingErrorMessage("failed to receive ADS request");
+
+    // there is no onStreamResponseLatch because V3DiscoveryServer doesn't call the callbacks
+    // when responding to a delta request
+
+    String baseUri = String
+        .format("http://%s:%d", ENVOY.getContainerIpAddress(), ENVOY.getMappedPort(LISTENER_PORT));
+
+    await().atMost(5, TimeUnit.SECONDS).ignoreExceptions().untilAsserted(
+        () -> given().baseUri(baseUri).contentType(ContentType.TEXT)
+            .when().get("/")
+            .then().statusCode(200)
+            .and().body(containsString(UPSTREAM.response)));
+
+    // we'll count three nonces of "0"
+    assertThat(nonce.toString()).isEqualTo("000");
+
+    // now write a new snapshot, with no changes to the params we pass in
+    // but update version. This being a Delta request, this version doesn't
+    // really matter, and Envoy should not receive a spontaneous update
+    // because the hash of the resources will be the same
+    Snapshot snapshot = V3TestSnapshots.createSnapshotNoEds(false,
+        true,
+        "upstream",
+        UPSTREAM.ipAddress(),
+        EchoContainer.PORT,
+        "listener0",
+        LISTENER_PORT,
+        "route0",
+        "2");
+    LOGGER.info("snapshot={}", snapshot);
+    cache.setSnapshot(
+        GROUP,
+        snapshot
+    );
+
+    await().atMost(3, TimeUnit.SECONDS).untilAsserted(
+        () -> assertThat(nonce.toString()).isEqualTo("000")
+    );
+  }
+
+  @AfterClass
+  public static void after() throws Exception {
     ENVOY.close();
     UPSTREAM.close();
     NETWORK.close();
