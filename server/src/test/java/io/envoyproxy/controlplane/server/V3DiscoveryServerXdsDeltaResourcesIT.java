@@ -6,11 +6,13 @@ import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.containsString;
 
 import io.envoyproxy.controlplane.cache.NodeGroup;
+import io.envoyproxy.controlplane.cache.Resources.V3;
 import io.envoyproxy.controlplane.cache.v3.SimpleCache;
 import io.envoyproxy.controlplane.cache.v3.Snapshot;
 import io.envoyproxy.envoy.api.v2.core.Node;
 import io.grpc.netty.NettyServerBuilder;
 import io.restassured.http.ContentType;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.AfterClass;
@@ -33,6 +35,7 @@ public class V3DiscoveryServerXdsDeltaResourcesIT {
   private static final CountDownLatch onStreamOpenLatch = new CountDownLatch(1);
   private static final CountDownLatch onStreamRequestLatch = new CountDownLatch(1);
 
+  private static ConcurrentHashMap<String, StringBuffer> resourceToNonceMap = new ConcurrentHashMap();
   private static StringBuffer nonce = new StringBuffer();
   private static StringBuffer errorDetails = new StringBuffer();
 
@@ -54,7 +57,7 @@ public class V3DiscoveryServerXdsDeltaResourcesIT {
 
       final DiscoveryServerCallbacks callbacks =
           new V3DeltaDiscoveryServerCallbacks(onStreamOpenLatch, onStreamRequestLatch, nonce,
-              errorDetails);
+              errorDetails, resourceToNonceMap);
 
       Snapshot snapshot = V3TestSnapshots.createSnapshotNoEds(false,
           true,
@@ -119,8 +122,13 @@ public class V3DiscoveryServerXdsDeltaResourcesIT {
 
     // we'll get three 0 nonces as this relates to the first version of resource state
     // and check that errorDetails is empty
-    assertThat(nonce.toString()).isEqualTo("000");
     assertThat(errorDetails.toString()).isEqualTo("");
+    assertThat(resourceToNonceMap.containsKey(V3.CLUSTER_TYPE_URL)).isTrue();
+    assertThat(resourceToNonceMap.get(V3.CLUSTER_TYPE_URL).toString()).isEqualTo("0");
+    assertThat(resourceToNonceMap.containsKey(V3.LISTENER_TYPE_URL)).isTrue();
+    assertThat(resourceToNonceMap.get(V3.LISTENER_TYPE_URL).toString()).isEqualTo("0");
+    assertThat(resourceToNonceMap.containsKey(V3.ROUTE_TYPE_URL)).isTrue();
+    assertThat(resourceToNonceMap.get(V3.ROUTE_TYPE_URL).toString()).isEqualTo("0");
 
     // now write a new snapshot, with the only change being an update
     // to the listener name, wait for a few seconds for envoy to pick it up, and
@@ -143,7 +151,8 @@ public class V3DiscoveryServerXdsDeltaResourcesIT {
     // after the update, we've changed listener1, so will get a new nonce
     await().atMost(3, TimeUnit.SECONDS).untilAsserted(
         () -> {
-          assertThat(nonce.toString()).isEqualTo("0001");
+          assertThat(resourceToNonceMap.containsKey(V3.LISTENER_TYPE_URL)).isTrue();
+          assertThat(resourceToNonceMap.get(V3.LISTENER_TYPE_URL).toString()).isEqualTo("01");
           assertThat(errorDetails.toString()).isEqualTo("");
         }
     );
@@ -171,8 +180,13 @@ public class V3DiscoveryServerXdsDeltaResourcesIT {
             .and().body(containsString(UPSTREAM.response)));
 
     // we'll count three nonces of "0" and make sure we've gotten no errors
-    assertThat(nonce.toString()).isEqualTo("000");
     assertThat(errorDetails.toString()).isEqualTo("");
+    assertThat(resourceToNonceMap.containsKey(V3.CLUSTER_TYPE_URL)).isTrue();
+    assertThat(resourceToNonceMap.get(V3.CLUSTER_TYPE_URL).toString()).isEqualTo("0");
+    assertThat(resourceToNonceMap.containsKey(V3.LISTENER_TYPE_URL)).isTrue();
+    assertThat(resourceToNonceMap.get(V3.LISTENER_TYPE_URL).toString()).isEqualTo("0");
+    assertThat(resourceToNonceMap.containsKey(V3.ROUTE_TYPE_URL)).isTrue();
+    assertThat(resourceToNonceMap.get(V3.ROUTE_TYPE_URL).toString()).isEqualTo("0");
 
     // now write a new snapshot, with no changes to the params we pass in
     // but update version. This being a Delta request, this version doesn't
@@ -195,7 +209,12 @@ public class V3DiscoveryServerXdsDeltaResourcesIT {
 
     await().atMost(3, TimeUnit.SECONDS).untilAsserted(
         () -> {
-          assertThat(nonce.toString()).isEqualTo("000");
+          assertThat(resourceToNonceMap.containsKey(V3.CLUSTER_TYPE_URL)).isTrue();
+          assertThat(resourceToNonceMap.get(V3.CLUSTER_TYPE_URL).toString()).isEqualTo("0");
+          assertThat(resourceToNonceMap.containsKey(V3.LISTENER_TYPE_URL)).isTrue();
+          assertThat(resourceToNonceMap.get(V3.LISTENER_TYPE_URL).toString()).isEqualTo("0");
+          assertThat(resourceToNonceMap.containsKey(V3.ROUTE_TYPE_URL)).isTrue();
+          assertThat(resourceToNonceMap.get(V3.ROUTE_TYPE_URL).toString()).isEqualTo("0");
           assertThat(errorDetails.toString()).isEqualTo("");
         }
     );

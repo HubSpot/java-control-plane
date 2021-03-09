@@ -6,11 +6,13 @@ import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.containsString;
 
 import io.envoyproxy.controlplane.cache.NodeGroup;
+import io.envoyproxy.controlplane.cache.Resources.V3;
 import io.envoyproxy.controlplane.cache.v3.SimpleCache;
 import io.envoyproxy.controlplane.cache.v3.Snapshot;
 import io.envoyproxy.envoy.api.v2.core.Node;
 import io.grpc.netty.NettyServerBuilder;
 import io.restassured.http.ContentType;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.AfterClass;
@@ -31,6 +33,7 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
   private static final CountDownLatch onStreamOpenLatch = new CountDownLatch(1);
   private static final CountDownLatch onStreamRequestLatch = new CountDownLatch(1);
 
+  private static ConcurrentHashMap<String, StringBuffer> resourceToNonceMap = new ConcurrentHashMap();
   private static StringBuffer nonce = new StringBuffer();
   private static StringBuffer errorDetails = new StringBuffer();
 
@@ -50,7 +53,7 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
 
       final DiscoveryServerCallbacks callbacks =
           new V3DeltaDiscoveryServerCallbacks(onStreamOpenLatch, onStreamRequestLatch, nonce,
-              errorDetails);
+              errorDetails, resourceToNonceMap);
 
       Snapshot snapshot = V3TestSnapshots.createSnapshot(true,
           true,
@@ -99,7 +102,8 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
     // there is no onStreamResponseLatch because V3DiscoveryServer doesn't call the callbacks
     // when responding to a delta request
 
-    String baseUri = String.format("http://%s:%d", ENVOY.getContainerIpAddress(), ENVOY.getMappedPort(LISTENER_PORT));
+    String baseUri = String
+        .format("http://%s:%d", ENVOY.getContainerIpAddress(), ENVOY.getMappedPort(LISTENER_PORT));
 
     await().atMost(5, TimeUnit.SECONDS).ignoreExceptions().untilAsserted(
         () -> given().baseUri(baseUri).contentType(ContentType.TEXT)
@@ -109,7 +113,12 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
 
     // basically the nonces will count up from 0 to 3 as envoy receives more resources
     // and check that no messages have been sent to errorDetails
+    // here just check that the nonceMap contains each of the resources we expect
+    // as it's not guaranteed what order they'll be received in
     assertThat(nonce.toString()).isEqualTo("0123");
+    assertThat(resourceToNonceMap.containsKey(V3.CLUSTER_TYPE_URL)).isTrue();
+    assertThat(resourceToNonceMap.containsKey(V3.LISTENER_TYPE_URL)).isTrue();
+    assertThat(resourceToNonceMap.containsKey(V3.ROUTE_TYPE_URL)).isTrue();
     assertThat(errorDetails.toString()).isEqualTo("");
 
     // now write a new snapshot, with the only change being an update
@@ -134,6 +143,10 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
         () -> {
           assertThat(nonce.toString()).isEqualTo("01234");
           assertThat(errorDetails.toString()).isEqualTo("");
+          assertThat(resourceToNonceMap.containsKey(V3.LISTENER_TYPE_URL)).isTrue();
+          // we know that the most recent update was to the listener, so check
+          // that it received the most recent nonce
+          assertThat(resourceToNonceMap.get(V3.LISTENER_TYPE_URL).toString()).contains("4");
         }
     );
   }
@@ -162,6 +175,9 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
     // basically the nonces will count up from 0 to 3 as envoy receives more resources
     // and check that no messages have been sent to errorDetails
     assertThat(nonce.toString()).isEqualTo("0123");
+    assertThat(resourceToNonceMap.containsKey(V3.CLUSTER_TYPE_URL)).isTrue();
+    assertThat(resourceToNonceMap.containsKey(V3.LISTENER_TYPE_URL)).isTrue();
+    assertThat(resourceToNonceMap.containsKey(V3.ROUTE_TYPE_URL)).isTrue();
     assertThat(errorDetails.toString()).isEqualTo("");
 
     // now write a new snapshot, with the only change being an update
