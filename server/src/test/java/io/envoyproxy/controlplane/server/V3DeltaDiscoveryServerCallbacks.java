@@ -14,20 +14,23 @@ public class V3DeltaDiscoveryServerCallbacks implements DiscoveryServerCallbacks
   private final CountDownLatch onStreamOpenLatch;
   private final CountDownLatch onStreamRequestLatch;
   private StringBuffer nonce;
+  private StringBuffer errorDetail;
 
   /**
-   * Returns an implementation of DiscoveryServerCallbacks that throws if it sees a v2 request,
-   * and counts down on provided latches in response to certain events.
+   * Returns an implementation of DiscoveryServerCallbacks that throws if it sees a v2 request, and
+   * counts down on provided latches in response to certain events.
    *
-   * @param onStreamOpenLatch latch to call countDown() on when a v3 stream is opened.
+   * @param onStreamOpenLatch    latch to call countDown() on when a v3 stream is opened.
    * @param onStreamRequestLatch latch to call countDown() on when a v3 request is seen.
    */
   public V3DeltaDiscoveryServerCallbacks(CountDownLatch onStreamOpenLatch,
       CountDownLatch onStreamRequestLatch,
-      StringBuffer nonce) {
+      StringBuffer nonce,
+      StringBuffer errorDetail) {
     this.onStreamOpenLatch = onStreamOpenLatch;
     this.onStreamRequestLatch = onStreamRequestLatch;
     this.nonce = nonce;
+    this.errorDetail = errorDetail;
   }
 
   @Override
@@ -58,7 +61,7 @@ public class V3DeltaDiscoveryServerCallbacks implements DiscoveryServerCallbacks
   public void onV3StreamDeltaRequest(long streamId,
       io.envoyproxy.envoy.service.discovery.v3.DeltaDiscoveryRequest request) {
     LOGGER.info("Got a v3StreamDeltaRequest");
-    LOGGER.info("errorDetail={}", request.getErrorDetail().toString());
+    errorDetail.append(request.getErrorDetail().getMessage());
     nonce.append(request.getResponseNonce());
     onStreamRequestLatch.countDown();
   }

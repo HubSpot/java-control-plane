@@ -13,7 +13,7 @@ import io.grpc.netty.NettyServerBuilder;
 import io.restassured.http.ContentType;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
@@ -31,7 +31,8 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
   private static final CountDownLatch onStreamOpenLatch = new CountDownLatch(1);
   private static final CountDownLatch onStreamRequestLatch = new CountDownLatch(1);
 
-  private static  StringBuffer nonce = new StringBuffer();
+  private static StringBuffer nonce = new StringBuffer();
+  private static StringBuffer errorDetails = new StringBuffer();
 
   private static final SimpleCache<String> cache = new SimpleCache<>(new NodeGroup<String>() {
     @Override public String hash(Node node) {
@@ -48,7 +49,8 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
     protected void configureServerBuilder(NettyServerBuilder builder) {
 
       final DiscoveryServerCallbacks callbacks =
-          new V3DeltaDiscoveryServerCallbacks(onStreamOpenLatch, onStreamRequestLatch, nonce);
+          new V3DeltaDiscoveryServerCallbacks(onStreamOpenLatch, onStreamRequestLatch, nonce,
+              errorDetails);
 
       Snapshot snapshot = V3TestSnapshots.createSnapshot(true,
           true,
@@ -106,7 +108,9 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
             .and().body(containsString(UPSTREAM.response)));
 
     // basically the nonces will count up from 0 to 3 as envoy receives more resources
+    // and check that no messages have been sent to errorDetails
     assertThat(nonce.toString()).isEqualTo("0123");
+    assertThat(errorDetails.toString()).isEqualTo("");
 
     // now write a new snapshot, with the only change being an update
     // to the listener name, wait for a few seconds for envoy to pick it up, and
@@ -127,12 +131,67 @@ public class V3DiscoveryServerAdsDeltaResourcesIT {
     );
 
     await().atMost(3, TimeUnit.SECONDS).untilAsserted(
-        () -> assertThat(nonce.toString()).isEqualTo("01234")
+        () -> {
+          assertThat(nonce.toString()).isEqualTo("01234");
+          assertThat(errorDetails.toString()).isEqualTo("");
+        }
     );
   }
 
-  @After
-  public void after() throws Exception {
+  @Test
+  public void validateNewSnapshotVersionButSameUnderlyingResourcesDoesNotTriggerUpdate()
+      throws InterruptedException {
+    assertThat(onStreamOpenLatch.await(15, TimeUnit.SECONDS)).isTrue()
+        .overridingErrorMessage("failed to open ADS stream");
+
+    assertThat(onStreamRequestLatch.await(15, TimeUnit.SECONDS)).isTrue()
+        .overridingErrorMessage("failed to receive ADS request");
+
+    // there is no onStreamResponseLatch because V3DiscoveryServer doesn't call the callbacks
+    // when responding to a delta request
+
+    String baseUri = String
+        .format("http://%s:%d", ENVOY.getContainerIpAddress(), ENVOY.getMappedPort(LISTENER_PORT));
+
+    await().atMost(5, TimeUnit.SECONDS).ignoreExceptions().untilAsserted(
+        () -> given().baseUri(baseUri).contentType(ContentType.TEXT)
+            .when().get("/")
+            .then().statusCode(200)
+            .and().body(containsString(UPSTREAM.response)));
+
+    // basically the nonces will count up from 0 to 3 as envoy receives more resources
+    // and check that no messages have been sent to errorDetails
+    assertThat(nonce.toString()).isEqualTo("0123");
+    assertThat(errorDetails.toString()).isEqualTo("");
+
+    // now write a new snapshot, with the only change being an update
+    // to the version, wait for a few seconds for envoy to pick it up, and
+    // check that the nonce doesn't change
+    Snapshot snapshot = V3TestSnapshots.createSnapshot(true,
+        true,
+        "upstream",
+        UPSTREAM.ipAddress(),
+        EchoContainer.PORT,
+        "listener0",
+        LISTENER_PORT,
+        "route0",
+        "2");
+    LOGGER.info("snapshot={}", snapshot);
+    cache.setSnapshot(
+        GROUP,
+        snapshot
+    );
+
+    await().atMost(3, TimeUnit.SECONDS).untilAsserted(
+        () -> {
+          assertThat(nonce.toString()).isEqualTo("0123");
+          assertThat(errorDetails.toString()).isEqualTo("");
+        }
+    );
+  }
+
+  @AfterClass
+  public static void after() throws Exception {
     ENVOY.close();
     UPSTREAM.close();
     NETWORK.close();

@@ -34,6 +34,7 @@ public class V3DiscoveryServerXdsDeltaResourcesIT {
   private static final CountDownLatch onStreamRequestLatch = new CountDownLatch(1);
 
   private static StringBuffer nonce = new StringBuffer();
+  private static StringBuffer errorDetails = new StringBuffer();
 
   private static final SimpleCache<String> cache = new SimpleCache<>(new NodeGroup<String>() {
     @Override
@@ -52,7 +53,8 @@ public class V3DiscoveryServerXdsDeltaResourcesIT {
     protected void configureServerBuilder(NettyServerBuilder builder) {
 
       final DiscoveryServerCallbacks callbacks =
-          new V3DeltaDiscoveryServerCallbacks(onStreamOpenLatch, onStreamRequestLatch, nonce);
+          new V3DeltaDiscoveryServerCallbacks(onStreamOpenLatch, onStreamRequestLatch, nonce,
+              errorDetails);
 
       Snapshot snapshot = V3TestSnapshots.createSnapshotNoEds(false,
           true,
@@ -116,7 +118,9 @@ public class V3DiscoveryServerXdsDeltaResourcesIT {
             .and().body(containsString(UPSTREAM.response)));
 
     // we'll get three 0 nonces as this relates to the first version of resource state
+    // and check that errorDetails is empty
     assertThat(nonce.toString()).isEqualTo("000");
+    assertThat(errorDetails.toString()).isEqualTo("");
 
     // now write a new snapshot, with the only change being an update
     // to the listener name, wait for a few seconds for envoy to pick it up, and
@@ -138,7 +142,10 @@ public class V3DiscoveryServerXdsDeltaResourcesIT {
 
     // after the update, we've changed listener1, so will get a new nonce
     await().atMost(3, TimeUnit.SECONDS).untilAsserted(
-        () -> assertThat(nonce.toString()).isEqualTo("0001")
+        () -> {
+          assertThat(nonce.toString()).isEqualTo("0001");
+          assertThat(errorDetails.toString()).isEqualTo("");
+        }
     );
   }
 
@@ -163,8 +170,9 @@ public class V3DiscoveryServerXdsDeltaResourcesIT {
             .then().statusCode(200)
             .and().body(containsString(UPSTREAM.response)));
 
-    // we'll count three nonces of "0"
+    // we'll count three nonces of "0" and make sure we've gotten no errors
     assertThat(nonce.toString()).isEqualTo("000");
+    assertThat(errorDetails.toString()).isEqualTo("");
 
     // now write a new snapshot, with no changes to the params we pass in
     // but update version. This being a Delta request, this version doesn't
@@ -186,7 +194,10 @@ public class V3DiscoveryServerXdsDeltaResourcesIT {
     );
 
     await().atMost(3, TimeUnit.SECONDS).untilAsserted(
-        () -> assertThat(nonce.toString()).isEqualTo("000")
+        () -> {
+          assertThat(nonce.toString()).isEqualTo("000");
+          assertThat(errorDetails.toString()).isEqualTo("");
+        }
     );
   }
 
