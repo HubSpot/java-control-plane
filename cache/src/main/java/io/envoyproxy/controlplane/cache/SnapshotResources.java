@@ -1,11 +1,14 @@
 package io.envoyproxy.controlplane.cache;
 
 import com.google.auto.value.AutoValue;
+import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap.Builder;
 import com.google.protobuf.Message;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collector;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 @AutoValue
@@ -19,7 +22,7 @@ public abstract class SnapshotResources<T extends Message> {
    * @param <T>       the type of resources in this collection
    */
   public static <T extends Message> SnapshotResources<T> create(
-      Iterable<SnapshotResource<T>> resources,
+      Iterable<?> resources,
       String version) {
     return new AutoValue_SnapshotResources<>(
         resourcesMap(resources),
@@ -44,20 +47,55 @@ public abstract class SnapshotResources<T extends Message> {
   }
 
   private static <T extends Message> ImmutableMap<String, SnapshotResource<T>> resourcesMap(
-      Iterable<SnapshotResource<T>> resources) {
-    return StreamSupport.stream(resources.spliterator(), false)
-        .collect(
-            Collector.of(
-                ImmutableMap.Builder<String, SnapshotResource<T>>::new,
-                (b, e) -> b.put(Resources.getResourceName(e.resource()), e),
-                (b1, b2) -> b1.putAll(b2.build()),
-                ImmutableMap.Builder::build));
+      Iterable<?> resources) {
+    List<?> resourcesList = StreamSupport.stream(resources.spliterator(), false)
+        .collect(Collectors.toList());
+    if (resourcesList.stream().allMatch(Predicates.instanceOf(SnapshotResource.class)::apply)) {
+      ImmutableMap<String, SnapshotResource<T>> result = StreamSupport
+          .stream(resourcesList.spliterator(), false)
+          .collect(
+              Collector.of(
+                  Builder<String, SnapshotResource<T>>::new,
+                  (b, e) -> {
+                    SnapshotResource<T> eCast = (SnapshotResource<T>) e;
+                    b.put(Resources.getResourceName(eCast.resource()), eCast);
+                  },
+                  (b1, b2) -> b1.putAll(b2.build()),
+                  Builder::build));
+      return result;
+    } else {
+      return StreamSupport.stream(resources.spliterator(), false)
+          .collect(
+              Collector.of(
+                  Builder<String, SnapshotResource<T>>::new,
+                  (b, e) -> {
+                    T eCast = (T) e;
+                    b.put(Resources.getResourceName(eCast), SnapshotResource.create(eCast));
+                  },
+                  (b1, b2) -> b1.putAll(b2.build()),
+                  Builder::build));
+    }
   }
 
   /**
    * Returns a map of the resources in this collection, where the key is the name of the resource.
    */
   public abstract Map<String, SnapshotResource<T>> resources();
+
+  /**
+   * Returns a map of the underlying resources in this collection, where the key is the name of the
+   * resource.
+   */
+  public Map<String, T> getUnderlyingResources() {
+    return resources().values().stream().collect(
+        Collector.of(
+            Builder<String, T>::new,
+            (b, e) -> {
+              b.put(Resources.getResourceName(e.resource()), e.resource());
+            },
+            (b1, b2) -> b1.putAll(b2.build()),
+            Builder::build));
+  }
 
   /**
    * Returns the version associated with this all resources in this collection.
