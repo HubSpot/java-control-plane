@@ -3,7 +3,6 @@ package io.envoyproxy.controlplane.cache;
 import com.google.auto.value.AutoValue;
 import com.google.common.hash.Hashing;
 import com.google.protobuf.Message;
-import java.nio.charset.StandardCharsets;
 
 @AutoValue
 public abstract class VersionedResource<T extends Message> {
@@ -31,9 +30,8 @@ public abstract class VersionedResource<T extends Message> {
   public static <T extends Message> VersionedResource<T> create(T resource) {
     return new AutoValue_VersionedResource<>(
         resource,
-        // todo: is this a stable hash?
         Hashing.sha256()
-            .hashString(resource.toString(), StandardCharsets.UTF_8)
+            .hashBytes(resource.toByteArray())
             .toString()
     );
   }
